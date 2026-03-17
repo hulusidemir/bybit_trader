@@ -52,6 +52,17 @@ const (
 	TradeCancelled TradeStatus = "CANCELLED"
 )
 
+// TPPhase tracks which TP limit order is currently active
+type TPPhase string
+
+const (
+	TPPhaseNone       TPPhase = ""           // no TP orders placed yet
+	TPPhaseWaitingTP1 TPPhase = "WAITING_TP1" // TP1 limit order placed, waiting fill
+	TPPhaseWaitingTP2 TPPhase = "WAITING_TP2" // TP2 limit order placed, waiting fill
+	TPPhaseWaitingTP3 TPPhase = "WAITING_TP3" // TP3 limit order placed, waiting fill
+	TPPhaseDone       TPPhase = "DONE"        // all TPs completed
+)
+
 // ── Market Data Types ───────────────────────────────────────
 
 type Coin struct {
@@ -227,6 +238,12 @@ type Trade struct {
 	MarginUsed     float64 // Total margin deployed (USD)
 	MarginPerEntry float64 // Margin for each individual entry/DCA ($)
 	LastDCAPrice   float64 // Price of the most recent DCA entry
+
+	// TP limit order tracking
+	TP1OrderID     string  // Bybit order ID for TP1 limit order
+	TP2OrderID     string  // Bybit order ID for TP2 limit order
+	TP3OrderID     string  // Bybit order ID for TP3 limit order
+	TPPhase        TPPhase // Current TP phase
 
 	OpenedAt      time.Time
 	ClosedAt      *time.Time

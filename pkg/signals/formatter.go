@@ -278,3 +278,26 @@ func FormatDCA(trade *models.Trade, dcaCount int, dcaPrice, dcaQty, newAvgEntry,
 
 	return b.String()
 }
+
+// FormatTPOrderPlaced creates a notification when a TP limit order is placed
+func FormatTPOrderPlaced(trade *models.Trade, phase string, tpPrice float64, orderQty float64) string {
+	var b strings.Builder
+
+	levelName := "TP1"
+	switch phase {
+	case "WAITING_TP1":
+		levelName = "TP1"
+	case "WAITING_TP2":
+		levelName = "TP2"
+	case "WAITING_TP3":
+		levelName = "TP3"
+	}
+
+	b.WriteString(fmt.Sprintf("📋 *%s LİMİT EMRİ GİRİLDİ* — %s\n\n", levelName, trade.Symbol))
+	b.WriteString(fmt.Sprintf("🔄 Yön: %s\n", trade.Direction))
+	b.WriteString(fmt.Sprintf("💵 Hedef Fiyat: $%s\n", formatPrice(tpPrice)))
+	b.WriteString(fmt.Sprintf("📦 Miktar: %.6f\n", orderQty))
+	b.WriteString(fmt.Sprintf("📊 Kalan Pozisyon: %.6f\n", trade.RemainingQty))
+
+	return b.String()
+}

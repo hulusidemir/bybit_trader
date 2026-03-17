@@ -1,6 +1,7 @@
 package tracker
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -95,8 +96,17 @@ func (m *Monitor) checkPendingOrders() {
 			log.Printf("[Monitor] ✅ Order filled: %s %s avg=%.4f qty=%.6f",
 				trade.Symbol, trade.Direction, avgPrice, filledQty)
 
+			// Update trade object with filled data for TP placement
+			trade.AvgEntryPrice = avgPrice
+			trade.TotalQty = filledQty
+			trade.RemainingQty = filledQty
+			trade.Status = models.TradeActive
+
 			msg := signals.FormatOrderFilled(trade, avgPrice, filledQty)
 			m.tgBot.SendMessage(msg)
+
+			// Immediately place TP1 limit order (50% of position)
+			m.placeNextTPOrder(trade, models.TPPhaseWaitingTP1)
 			continue
 		}
 
@@ -131,6 +141,7 @@ func (m *Monitor) checkActiveTrades() {
 	tickers, err := m.bybit.FetchTickers()
 	if err != nil {
 		log.Printf("[Monitor] Error fetching tickers: %v", err)
+		m.tgBot.SendMessage(fmt.Sprintf("⚠️ *API HATASI* — Fiyat verisi alınamadı\n\n```%v```", err))
 		return
 	}
 
@@ -154,111 +165,193 @@ func (m *Monitor) checkActiveTrades() {
 }
 
 func (m *Monitor) evaluateTrade(trade *models.Trade, currentPrice float64) {
-	if trade.Direction == models.DirectionLong {
-		m.evaluateLong(trade, currentPrice)
-	} else {
-		m.evaluateShort(trade, currentPrice)
-	}
-}
-
-func (m *Monitor) evaluateLong(trade *models.Trade, price float64) {
-	// ── TP3: close remaining position ──────────────
-	if price >= trade.TP3 && trade.Status != models.TradeTP3 {
-		m.executeTPClose(trade, price, models.TradeTP3, 1.0) // 100% of remaining
-		return
-	}
-
-	// ── TP2: close 50% of remaining ────────────────
-	if price >= trade.TP2 && trade.Status != models.TradeTP2 && trade.Status != models.TradeTP3 {
-		m.executeTPClose(trade, price, models.TradeTP2, 0.50)
-		return
-	}
-
-	// ── TP1: close 40% of remaining ────────────────
-	if price >= trade.TP1 && trade.Status != models.TradeTP1 && trade.Status != models.TradeTP2 && trade.Status != models.TradeTP3 {
-		m.executeTPClose(trade, price, models.TradeTP1, 0.40)
-		return
-	}
-
-	// ── DCA: check if price dropped 20% from avg entry ──
-	if m.exec != nil && m.exec.ShouldDCA(trade, price) {
-		m.executeDCA(trade, price)
-	}
-}
-
-func (m *Monitor) evaluateShort(trade *models.Trade, price float64) {
-	// ── TP3: close remaining position ──────────────
-	if price <= trade.TP3 && trade.Status != models.TradeTP3 {
-		m.executeTPClose(trade, price, models.TradeTP3, 1.0)
-		return
-	}
-
-	// ── TP2: close 50% of remaining ────────────────
-	if price <= trade.TP2 && trade.Status != models.TradeTP2 && trade.Status != models.TradeTP3 {
-		m.executeTPClose(trade, price, models.TradeTP2, 0.50)
-		return
-	}
-
-	// ── TP1: close 40% of remaining ────────────────
-	if price <= trade.TP1 && trade.Status != models.TradeTP1 && trade.Status != models.TradeTP2 && trade.Status != models.TradeTP3 {
-		m.executeTPClose(trade, price, models.TradeTP1, 0.40)
-		return
-	}
-
-	// ── DCA: check if price rose 20% from avg entry ──
-	if m.exec != nil && m.exec.ShouldDCA(trade, price) {
-		m.executeDCA(trade, price)
-	}
-}
-
-// ── TP Execution ───────────────────────────────────────────
-
-func (m *Monitor) executeTPClose(trade *models.Trade, currentPrice float64, status models.TradeStatus, fraction float64) {
 	if m.exec == nil {
-		// Signal-only mode: just update status
-		m.store.UpdateTradeStatus(trade.ID, status)
-		if status == models.TradeTP3 {
-			m.closeTradeInDB(trade, currentPrice, status)
-		}
 		return
 	}
 
-	if status == models.TradeTP3 {
-		// Full close
-		_, err := m.exec.ClosePosition(trade)
-		if err != nil {
-			log.Printf("[Monitor] Error closing position at TP3 for %s: %v", trade.Symbol, err)
+	// Check TP limit order fill status
+	m.checkTPOrders(trade, currentPrice)
+
+	// Check DCA conditions (only if no TP has been hit yet — after TP1 we're in profit-protection mode)
+	if trade.TPPhase == models.TPPhaseWaitingTP1 && m.exec.ShouldDCA(trade, currentPrice) {
+		m.executeDCA(trade, currentPrice)
+	}
+}
+
+// checkTPOrders monitors TP limit order fills and cascades to next TP + SL update
+func (m *Monitor) checkTPOrders(trade *models.Trade, currentPrice float64) {
+	switch trade.TPPhase {
+	case models.TPPhaseNone:
+		// No TP order placed yet — place TP1 (this can happen if bot restarted)
+		m.placeNextTPOrder(trade, models.TPPhaseWaitingTP1)
+
+	case models.TPPhaseWaitingTP1:
+		if trade.TP1OrderID == "" {
 			return
 		}
-		m.closeTradeInDB(trade, currentPrice, status)
-	} else {
-		// Partial close
-		_, closedQty, err := m.exec.ClosePartial(trade, fraction)
+		filled, _, filledQty, err := m.exec.CheckOrderFilled(trade.Symbol, trade.TP1OrderID)
 		if err != nil {
-			log.Printf("[Monitor] Error partial close at %s for %s: %v", status, trade.Symbol, err)
+			log.Printf("[Monitor] TP1 order error for %s: %v — will retry", trade.Symbol, err)
+			// Order might have been cancelled externally; re-place it
+			trade.TP1OrderID = ""
+			m.store.UpdateTPOrder(trade.ID, models.TPPhaseWaitingTP1, "", trade.TP2OrderID, trade.TP3OrderID)
+			m.placeNextTPOrder(trade, models.TPPhaseWaitingTP1)
 			return
+		}
+		if !filled {
+			return // still waiting
 		}
 
-		newRemaining := trade.RemainingQty - closedQty
+		// TP1 filled!
+		log.Printf("[Monitor] 🎯 TP1 limit order filled: %s qty=%.6f", trade.Symbol, filledQty)
+
+		newRemaining := trade.RemainingQty - filledQty
 		if newRemaining < 0 {
 			newRemaining = 0
 		}
-
 		m.store.UpdateRemainingQty(trade.ID, newRemaining)
-		m.store.UpdateTradeStatus(trade.ID, status)
+		m.store.UpdateTradeStatus(trade.ID, models.TradeTP1)
 
 		trade.RemainingQty = newRemaining
-		trade.Status = status
+		trade.Status = models.TradeTP1
 		trade.CurrentPrice = currentPrice
 
-		log.Printf("[Monitor] %s %s trade #%d: %s hit — closed %.6f, remaining %.6f",
-			trade.Symbol, trade.Direction, trade.ID, status, closedQty, newRemaining)
+		msg := signals.FormatTPHit(trade, "TP1_HIT", currentPrice, filledQty, 0.50)
+		m.tgBot.SendMessage(msg)
 
-		msg := signals.FormatTPHit(trade, string(status), currentPrice, closedQty, fraction)
-		if err := m.tgBot.SendMessage(msg); err != nil {
-			log.Printf("[Monitor] Error sending TP notification: %v", err)
+		// Move stop loss to entry price (breakeven)
+		if err := m.exec.SetTradingStop(trade.Symbol, trade.Direction, trade.AvgEntryPrice); err != nil {
+			log.Printf("[Monitor] Error setting SL to breakeven for %s: %v", trade.Symbol, err)
+			m.tgBot.SendMessage(fmt.Sprintf("⚠️ *SL HATASI* — %s\n\nStop loss giriş fiyatına çekilemedi\n```%v```", trade.Symbol, err))
+		} else {
+			m.store.UpdateStopLoss(trade.ID, trade.AvgEntryPrice)
+			m.store.MarkStopMoved(trade.ID, "TP1", time.Now())
+			stopMsg := signals.FormatStopMoved(trade, "TP1 → Giriş (Breakeven)", trade.AvgEntryPrice)
+			m.tgBot.SendMessage(stopMsg)
 		}
+
+		// Place TP2 limit order (50% of remaining)
+		m.placeNextTPOrder(trade, models.TPPhaseWaitingTP2)
+
+	case models.TPPhaseWaitingTP2:
+		if trade.TP2OrderID == "" {
+			return
+		}
+		filled, _, filledQty, err := m.exec.CheckOrderFilled(trade.Symbol, trade.TP2OrderID)
+		if err != nil {
+			log.Printf("[Monitor] TP2 order error for %s: %v — will retry", trade.Symbol, err)
+			trade.TP2OrderID = ""
+			m.store.UpdateTPOrder(trade.ID, models.TPPhaseWaitingTP2, trade.TP1OrderID, "", trade.TP3OrderID)
+			m.placeNextTPOrder(trade, models.TPPhaseWaitingTP2)
+			return
+		}
+		if !filled {
+			return
+		}
+
+		// TP2 filled!
+		log.Printf("[Monitor] 🎯 TP2 limit order filled: %s qty=%.6f", trade.Symbol, filledQty)
+
+		newRemaining := trade.RemainingQty - filledQty
+		if newRemaining < 0 {
+			newRemaining = 0
+		}
+		m.store.UpdateRemainingQty(trade.ID, newRemaining)
+		m.store.UpdateTradeStatus(trade.ID, models.TradeTP2)
+
+		trade.RemainingQty = newRemaining
+		trade.Status = models.TradeTP2
+		trade.CurrentPrice = currentPrice
+
+		msg := signals.FormatTPHit(trade, "TP2_HIT", currentPrice, filledQty, 0.50)
+		m.tgBot.SendMessage(msg)
+
+		// Move stop loss to TP1
+		if err := m.exec.SetTradingStop(trade.Symbol, trade.Direction, trade.TP1); err != nil {
+			log.Printf("[Monitor] Error setting SL to TP1 for %s: %v", trade.Symbol, err)
+			m.tgBot.SendMessage(fmt.Sprintf("⚠️ *SL HATASI* — %s\n\nStop loss TP1'e çekilemedi\n```%v```", trade.Symbol, err))
+		} else {
+			m.store.UpdateStopLoss(trade.ID, trade.TP1)
+			m.store.MarkStopMoved(trade.ID, "TP2", time.Now())
+			stopMsg := signals.FormatStopMoved(trade, "TP2 → TP1", trade.TP1)
+			m.tgBot.SendMessage(stopMsg)
+		}
+
+		// Place TP3 limit order (100% of remaining)
+		m.placeNextTPOrder(trade, models.TPPhaseWaitingTP3)
+
+	case models.TPPhaseWaitingTP3:
+		if trade.TP3OrderID == "" {
+			return
+		}
+		filled, _, filledQty, err := m.exec.CheckOrderFilled(trade.Symbol, trade.TP3OrderID)
+		if err != nil {
+			log.Printf("[Monitor] TP3 order error for %s: %v — will retry", trade.Symbol, err)
+			trade.TP3OrderID = ""
+			m.store.UpdateTPOrder(trade.ID, models.TPPhaseWaitingTP3, trade.TP1OrderID, trade.TP2OrderID, "")
+			m.placeNextTPOrder(trade, models.TPPhaseWaitingTP3)
+			return
+		}
+		if !filled {
+			return
+		}
+
+		// TP3 filled — full close!
+		log.Printf("[Monitor] 🏆 TP3 limit order filled: %s qty=%.6f — position fully closed", trade.Symbol, filledQty)
+		m.closeTradeInDB(trade, trade.TP3, models.TradeTP3)
 	}
+}
+
+// placeNextTPOrder places the appropriate TP limit order based on the phase
+func (m *Monitor) placeNextTPOrder(trade *models.Trade, phase models.TPPhase) {
+	if m.exec == nil {
+		return
+	}
+
+	var tpPrice float64
+	var fraction float64
+
+	switch phase {
+	case models.TPPhaseWaitingTP1:
+		tpPrice = trade.TP1
+		fraction = 0.50 // 50% of total position
+	case models.TPPhaseWaitingTP2:
+		tpPrice = trade.TP2
+		fraction = 0.50 // 50% of remaining
+	case models.TPPhaseWaitingTP3:
+		tpPrice = trade.TP3
+		fraction = 1.0 // 100% of remaining
+	default:
+		return
+	}
+
+	orderID, orderQty, err := m.exec.PlaceTPLimitOrder(trade, tpPrice, fraction)
+	if err != nil {
+		log.Printf("[Monitor] Error placing %s limit order for %s: %v", phase, trade.Symbol, err)
+		m.tgBot.SendMessage(fmt.Sprintf("⚠️ *EMİR HATASI* — %s\n\n%s limit emri girilemedi\n```%v```", trade.Symbol, phase, err))
+		return
+	}
+
+	// Update DB with order ID
+	switch phase {
+	case models.TPPhaseWaitingTP1:
+		trade.TP1OrderID = orderID
+		m.store.UpdateTPOrder(trade.ID, phase, orderID, trade.TP2OrderID, trade.TP3OrderID)
+	case models.TPPhaseWaitingTP2:
+		trade.TP2OrderID = orderID
+		m.store.UpdateTPOrder(trade.ID, phase, trade.TP1OrderID, orderID, trade.TP3OrderID)
+	case models.TPPhaseWaitingTP3:
+		trade.TP3OrderID = orderID
+		m.store.UpdateTPOrder(trade.ID, phase, trade.TP1OrderID, trade.TP2OrderID, orderID)
+	}
+
+	trade.TPPhase = phase
+
+	log.Printf("[Monitor] 📋 %s limit order placed: %s price=%.4f qty=%.6f orderID=%s",
+		phase, trade.Symbol, tpPrice, orderQty, orderID)
+
+	msg := signals.FormatTPOrderPlaced(trade, string(phase), tpPrice, orderQty)
+	m.tgBot.SendMessage(msg)
 }
 
 // ── DCA Execution ──────────────────────────────────────────
@@ -268,9 +361,21 @@ func (m *Monitor) executeDCA(trade *models.Trade, currentPrice float64) {
 		return
 	}
 
+	// Cancel existing TP1 limit order before DCA (qty/price will change)
+	if trade.TP1OrderID != "" {
+		if err := m.exec.CancelOrder(trade.Symbol, trade.TP1OrderID); err != nil {
+			log.Printf("[Monitor] Warning: could not cancel TP1 order before DCA for %s: %v", trade.Symbol, err)
+			m.tgBot.SendMessage(fmt.Sprintf("⚠️ *EMİR İPTAL HATASI* — %s\n\nDCA öncesi TP1 emri iptal edilemedi\n```%v```", trade.Symbol, err))
+		}
+		trade.TP1OrderID = ""
+	}
+
 	_, dcaQty, err := m.exec.ExecuteDCA(trade, currentPrice)
 	if err != nil {
 		log.Printf("[Monitor] DCA error for %s: %v", trade.Symbol, err)
+		m.tgBot.SendMessage(fmt.Sprintf("⚠️ *DCA HATASI* — %s\n\nDCA emri girilemedi\n```%v```", trade.Symbol, err))
+		// Re-place the TP1 order since DCA failed
+		m.placeNextTPOrder(trade, models.TPPhaseWaitingTP1)
 		return
 	}
 
@@ -297,6 +402,16 @@ func (m *Monitor) executeDCA(trade *models.Trade, currentPrice float64) {
 		return
 	}
 
+	// Update trade object with new values
+	trade.AvgEntryPrice = newAvgEntry
+	trade.TotalQty = newTotalQty
+	trade.RemainingQty = newRemainingQty
+	trade.DCACount = newDCACount
+	trade.MarginUsed = newMarginUsed
+	trade.TP1 = tp1
+	trade.TP2 = tp2
+	trade.TP3 = tp3
+
 	log.Printf("[Monitor] 📊 DCA #%d: %s %s — qty=%.6f at %.4f, new avg=%.4f, total margin=$%.0f",
 		newDCACount, trade.Symbol, trade.Direction, dcaQty, currentPrice, newAvgEntry, newMarginUsed)
 
@@ -304,6 +419,9 @@ func (m *Monitor) executeDCA(trade *models.Trade, currentPrice float64) {
 	if err := m.tgBot.SendMessage(msg); err != nil {
 		log.Printf("[Monitor] Error sending DCA notification: %v", err)
 	}
+
+	// Re-place TP1 limit order with new TP levels and updated qty
+	m.placeNextTPOrder(trade, models.TPPhaseWaitingTP1)
 }
 
 // ── Close Trade in DB ──────────────────────────────────────

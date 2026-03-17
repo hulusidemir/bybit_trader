@@ -57,6 +57,10 @@ func createTables(db *sql.DB) error {
 			margin_used REAL DEFAULT 0,
 			margin_per_entry REAL DEFAULT 0,
 			last_dca_price REAL DEFAULT 0,
+			tp1_order_id TEXT DEFAULT '',
+			tp2_order_id TEXT DEFAULT '',
+			tp3_order_id TEXT DEFAULT '',
+			tp_phase TEXT DEFAULT '',
 			opened_at DATETIME NOT NULL,
 			closed_at DATETIME,
 			moved_to_tp1_at DATETIME,
@@ -137,6 +141,26 @@ func ensureTradeColumns(db *sql.DB) error {
 	}
 	if !existing["last_dca_price"] {
 		if _, err := db.Exec(`ALTER TABLE trades ADD COLUMN last_dca_price REAL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	if !existing["tp1_order_id"] {
+		if _, err := db.Exec(`ALTER TABLE trades ADD COLUMN tp1_order_id TEXT DEFAULT ''`); err != nil {
+			return err
+		}
+	}
+	if !existing["tp2_order_id"] {
+		if _, err := db.Exec(`ALTER TABLE trades ADD COLUMN tp2_order_id TEXT DEFAULT ''`); err != nil {
+			return err
+		}
+	}
+	if !existing["tp3_order_id"] {
+		if _, err := db.Exec(`ALTER TABLE trades ADD COLUMN tp3_order_id TEXT DEFAULT ''`); err != nil {
+			return err
+		}
+	}
+	if !existing["tp_phase"] {
+		if _, err := db.Exec(`ALTER TABLE trades ADD COLUMN tp_phase TEXT DEFAULT ''`); err != nil {
 			return err
 		}
 	}
@@ -239,6 +263,8 @@ func (s *Store) queryTrades(where string) ([]*models.Trade, error) {
 			COALESCE(total_qty, 0), COALESCE(remaining_qty, 0),
 			COALESCE(dca_count, 0), COALESCE(margin_used, 0),
 			COALESCE(margin_per_entry, margin_used), COALESCE(last_dca_price, 0),
+			COALESCE(tp1_order_id, ''), COALESCE(tp2_order_id, ''), COALESCE(tp3_order_id, ''),
+			COALESCE(tp_phase, ''),
 			opened_at, closed_at, moved_to_tp1_at, moved_to_tp2_at
 		FROM trades ` + where)
 	if err != nil {
@@ -254,6 +280,7 @@ func (s *Store) queryTrades(where string) ([]*models.Trade, error) {
 		var movedTP2At sql.NullTime
 		var dir, pattern, grade, status string
 
+		var tpPhase string
 		err := rows.Scan(
 			&t.ID, &t.SignalID, &t.Symbol, &dir, &pattern, &grade,
 			&t.EntryPrice, &t.StopLoss, &t.TP1, &t.TP2, &t.TP3,
@@ -261,6 +288,8 @@ func (s *Store) queryTrades(where string) ([]*models.Trade, error) {
 			&t.OrderID, &t.AvgEntryPrice,
 			&t.TotalQty, &t.RemainingQty,
 			&t.DCACount, &t.MarginUsed, &t.MarginPerEntry, &t.LastDCAPrice,
+			&t.TP1OrderID, &t.TP2OrderID, &t.TP3OrderID,
+			&tpPhase,
 			&t.OpenedAt, &closedAt, &movedTP1At, &movedTP2At,
 		)
 		if err != nil {
@@ -271,6 +300,7 @@ func (s *Store) queryTrades(where string) ([]*models.Trade, error) {
 		t.Pattern = models.PatternName(pattern)
 		t.Grade = models.SignalGrade(grade)
 		t.Status = models.TradeStatus(status)
+		t.TPPhase = models.TPPhase(tpPhase)
 		if closedAt.Valid {
 			t.ClosedAt = &closedAt.Time
 		}
@@ -431,6 +461,21 @@ func (s *Store) UpdateDCA(id int64, newAvgEntry, newTotalQty, newRemainingQty fl
 // UpdateRemainingQty updates remaining qty after partial TP close
 func (s *Store) UpdateRemainingQty(id int64, remainingQty float64) error {
 	_, err := s.db.Exec(`UPDATE trades SET remaining_qty = ? WHERE id = ?`, remainingQty, id)
+	return err
+}
+
+// UpdateTPOrder stores a TP limit order ID and updates the TP phase
+func (s *Store) UpdateTPOrder(id int64, phase models.TPPhase, tp1OrderID, tp2OrderID, tp3OrderID string) error {
+	_, err := s.db.Exec(`
+		UPDATE trades SET tp_phase = ?, tp1_order_id = ?, tp2_order_id = ?, tp3_order_id = ?
+		WHERE id = ?
+	`, phase, tp1OrderID, tp2OrderID, tp3OrderID, id)
+	return err
+}
+
+// UpdateTPPhase updates only the TP phase
+func (s *Store) UpdateTPPhase(id int64, phase models.TPPhase) error {
+	_, err := s.db.Exec(`UPDATE trades SET tp_phase = ? WHERE id = ?`, phase, id)
 	return err
 }
 

@@ -5,33 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bybit Trader — Performance Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23000'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='40'%3E📡%3C/text%3E%3C/svg%3E">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --neon: #00ff41;
-            --neon-dim: #00cc33;
-            --neon-glow: 0 0 10px #00ff41, 0 0 20px #00ff4180;
-            --bg: #0a0a0a;
-            --card-bg: rgba(0, 255, 65, 0.03);
-            --card-border: rgba(0, 255, 65, 0.15);
-            --card-hover: rgba(0, 255, 65, 0.08);
-            --text: #c0ffc0;
-            --text-dim: #4a7a4a;
-            --red: #ff4444;
-            --red-dim: #cc2222;
-            --gold: #ffd700;
-            --blue: #00bfff;
-            --purple: #bf00ff;
+            /* Premium Color Palette */
+            --primary: #0ea5e9;
+            --primary-dark: #0284c7;
+            --primary-glow: 0 0 20px rgba(14, 165, 233, 0.15), 0 0 40px rgba(14, 165, 233, 0.08);
+            --accent: #06b6d4;
+            --accent-dark: #0891b2;
+            
+            /* Backgrounds */
+            --bg: #0a0f1e;
+            --bg-light: #131b2e;
+            --bg-card: rgba(19, 27, 46, 0.8);
+            --bg-elevated: rgba(30, 41, 59, 0.5);
+            
+            /* Borders & Dividers */
+            --border: rgba(71, 85, 105, 0.2);
+            --border-hover: rgba(14, 165, 233, 0.3);
+            
+            /* Text Colors */
+            --text: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            
+            /* Status Colors */
+            --success: #10b981;
+            --success-dark: #059669;
+            --danger: #ef4444;
+            --danger-dark: #dc2626;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --purple: #a855f7;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
             overflow-x: hidden;
+            font-weight: 400;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            letter-spacing: -0.01em;
         }
 
         /* ── Matrix Rain Canvas ── */
@@ -40,7 +60,7 @@
             top: 0; left: 0;
             width: 100%; height: 100%;
             z-index: 0;
-            opacity: 0.06;
+            opacity: 0.03;
             pointer-events: none;
         }
 
@@ -55,32 +75,38 @@
         /* ── Header ── */
         .header {
             text-align: center;
-            padding: 30px 0 20px;
-            border-bottom: 1px solid var(--card-border);
+            padding: 40px 0 30px;
+            border-bottom: 1px solid var(--border);
             margin-bottom: 30px;
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.03) 0%, transparent 100%);
+            border-radius: 12px;
         }
         .header h1 {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: 700;
-            color: var(--neon);
-            text-shadow: var(--neon-glow);
-            letter-spacing: 4px;
-            text-transform: uppercase;
+            color: var(--text);
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         .header .subtitle {
-            font-size: 12px;
-            color: var(--text-dim);
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
             margin-top: 8px;
-            letter-spacing: 2px;
+            letter-spacing: 0.5px;
         }
         .pulse {
             display: inline-block;
             width: 8px; height: 8px;
-            background: var(--neon);
+            background: var(--primary);
             border-radius: 50%;
             margin-right: 8px;
             animation: pulse 2s infinite;
-            box-shadow: var(--neon-glow);
+            box-shadow: 0 0 10px var(--primary), 0 0 20px rgba(14, 165, 233, 0.4);
         }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -91,51 +117,59 @@
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 15px;
+            gap: 16px;
             margin-bottom: 30px;
         }
         .stat-card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            padding: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
             text-align: center;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
         .stat-card:hover {
-            background: var(--card-hover);
-            box-shadow: var(--neon-glow);
+            background: var(--bg-elevated);
+            box-shadow: 0 8px 24px rgba(14, 165, 233, 0.1), var(--primary-glow);
             transform: translateY(-2px);
+            border-color: var(--border-hover);
         }
         .stat-label {
-            font-size: 10px;
-            color: var(--text-dim);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 8px;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
         }
         .stat-value {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: 700;
-            color: var(--neon);
-            text-shadow: var(--neon-glow);
+            color: var(--primary);
+            letter-spacing: -0.02em;
+            font-feature-settings: 'tnum';
         }
-        .stat-value.negative { color: var(--red); text-shadow: 0 0 10px var(--red); }
-        .stat-value.gold { color: var(--gold); text-shadow: 0 0 10px var(--gold); }
+        .stat-value.negative { 
+            color: var(--danger); 
+        }
+        .stat-value.gold { 
+            color: var(--gold); 
+            text-shadow: 0 0 15px rgba(251, 191, 36, 0.3); 
+        }
         .stat-sub-badge {
             display: inline-block;
             margin-top: 8px;
-            padding: 2px 8px;
+            padding: 4px 10px;
             border-radius: 999px;
             font-size: 10px;
             font-weight: 600;
-            letter-spacing: 0.6px;
-            color: var(--gold);
-            border: 1px solid rgba(255, 215, 0, 0.45);
-            background: rgba(255, 215, 0, 0.12);
+            letter-spacing: 0.3px;
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            background: rgba(245, 158, 11, 0.1);
             text-transform: uppercase;
-            text-shadow: none;
         }
 
         /* ── Sections ── */
@@ -143,31 +177,35 @@
             margin-bottom: 30px;
         }
         .section-title {
-            font-size: 14px;
-            color: var(--neon);
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            margin-bottom: 15px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--card-border);
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+            letter-spacing: -0.01em;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             gap: 10px;
         }
         .section-title::before {
-            content: '>';
-            color: var(--neon-dim);
-            animation: blink 1s infinite;
+            content: '';
+            width: 3px;
+            height: 20px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 2px;
         }
 
         /* ── Equity Curve ── */
         .chart-container {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            padding: 20px;
-            height: 250px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            height: 280px;
             position: relative;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(20px);
         }
         #equity-canvas {
             width: 100%;
@@ -184,299 +222,617 @@
             gap: 10px;
         }
         .search-box {
-            background: var(--bg);
-            border: 1px solid var(--card-border);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             color: var(--text);
-            padding: 8px 12px;
-            border-radius: 4px;
+            padding: 10px 14px;
+            border-radius: 8px;
             font-family: inherit;
-            font-size: 11px;
+            font-size: 13px;
+            font-weight: 500;
             width: 250px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .search-box:focus {
             outline: none;
-            border-color: var(--neon);
-            box-shadow: 0 0 5px rgba(0,255,65,0.3);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+            background: var(--bg-elevated);
         }
         .select-box {
-            background: var(--bg);
-            border: 1px solid var(--card-border);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             color: var(--text);
-            padding: 8px 12px;
-            border-radius: 4px;
+            padding: 10px 14px;
+            border-radius: 8px;
             font-family: inherit;
-            font-size: 11px;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .select-box:focus { outline: none; border-color: var(--neon); }
+        .select-box:focus { 
+            outline: none; 
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        }
         .pagination {
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: 12px;
-            color: var(--text-dim);
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
         }
         .page-btn {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             color: var(--text);
-            padding: 5px 10px;
-            border-radius: 4px;
+            padding: 8px 14px;
+            border-radius: 8px;
             cursor: pointer;
             font-family: inherit;
-            transition: all 0.2s;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 600;
+            font-size: 13px;
         }
         .page-btn:hover:not(:disabled) {
-            background: var(--card-hover);
-            color: var(--neon);
-            border-color: var(--neon);
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3), var(--primary-glow);
+            transform: translateY(-1px);
         }
         .page-btn:disabled {
-            opacity: 0.5;
+            opacity: 0.4;
             cursor: not-allowed;
         }
 
         /* ── Table ── */
         .table-wrapper {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            overflow: hidden;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow-x: auto;
+            overflow-y: visible;
+            -webkit-overflow-scrolling: touch;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(20px);
         }
         table {
             width: 100%;
+            min-width: 800px;
             border-collapse: collapse;
-            font-size: 12px;
+            font-size: 13px;
         }
         thead th {
-            background: rgba(0, 255, 65, 0.08);
-            color: var(--neon-dim);
-            padding: 12px 10px;
+            background: rgba(19, 27, 46, 0.95);
+            color: var(--text-secondary);
+            padding: 14px 12px;
             text-align: left;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            font-weight: 500;
-            font-size: 10px;
-            border-bottom: 1px solid var(--card-border);
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            font-size: 11px;
+            border-bottom: 2px solid var(--border);
             cursor: pointer;
             user-select: none;
             white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
-        thead th.sortable:hover { color: var(--neon); }
+        thead th.sortable:hover { 
+            color: var(--primary);
+        }
         tbody tr {
-            border-bottom: 1px solid rgba(0,255,65,0.05);
-            transition: background 0.2s;
+            border-bottom: 1px solid var(--border);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background: rgba(10, 15, 30, 0.2);
         }
-        tbody tr:hover { background: var(--card-hover); }
+        tbody tr:hover { 
+            background: rgba(14, 165, 233, 0.05);
+            box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.15);
+        }
         td {
-            padding: 10px;
+            padding: 12px;
             white-space: nowrap;
+            font-weight: 500;
+            font-feature-settings: 'tnum';
         }
         .badge {
             display: inline-block;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 1px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
         }
-        .badge-long { background: rgba(0,255,65,0.15); color: var(--neon); border: 1px solid var(--neon-dim); }
-        .badge-short { background: rgba(255,68,68,0.15); color: var(--red); border: 1px solid var(--red-dim); }
-        .badge-active { background: rgba(0,191,255,0.15); color: var(--blue); border: 1px solid var(--blue); }
-        .badge-tp1 { background: rgba(0,255,65,0.15); color: var(--neon); }
-        .badge-tp2 { background: rgba(255,215,0,0.15); color: var(--gold); }
-        .badge-tp3 { background: rgba(191,0,255,0.15); color: var(--purple); }
-        .badge-stopped { background: rgba(255,68,68,0.15); color: var(--red); }
-        .pnl-positive { color: var(--neon); }
-        .pnl-negative { color: var(--red); }
-        .datetime { color: var(--text-dim); font-size: 11px; }
+        .badge-long { 
+            background: rgba(16, 185, 129, 0.12); 
+            color: var(--success); 
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+        .badge-short { 
+            background: rgba(239, 68, 68, 0.12); 
+            color: var(--danger); 
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+        .badge-active { 
+            background: rgba(59, 130, 246, 0.12); 
+            color: var(--info); 
+            border: 1px solid rgba(59, 130, 246, 0.25);
+        }
+        .badge-tp1 { 
+            background: rgba(16, 185, 129, 0.12); 
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+        .badge-tp2 { 
+            background: rgba(245, 158, 11, 0.12); 
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+        .badge-tp3 { 
+            background: rgba(168, 85, 247, 0.12); 
+            color: var(--purple);
+            border: 1px solid rgba(168, 85, 247, 0.25);
+        }
+        .badge-stopped { 
+            background: rgba(239, 68, 68, 0.12); 
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+        .pnl-positive { color: var(--success); font-weight: 600; }
+        .pnl-negative { color: var(--danger); font-weight: 600; }
+        .datetime { color: var(--text-muted); font-size: 12px; }
 
         /* ── Pattern Stats ── */
         .pattern-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 12px;
+            gap: 16px;
         }
         .pattern-card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            padding: 15px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            transition: all 0.3s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(20px);
         }
         .pattern-card:hover {
-            background: var(--card-hover);
-            transform: translateX(5px);
+            background: var(--bg-elevated);
+            transform: translateX(4px);
+            border-color: var(--border-hover);
+            box-shadow: 0 8px 24px rgba(14, 165, 233, 0.1), var(--primary-glow);
         }
         .pattern-name {
-            font-size: 12px;
+            font-size: 13px;
+            font-weight: 600;
             color: var(--text);
+            letter-spacing: -0.01em;
         }
         .pattern-winrate {
             font-weight: 700;
-            font-size: 16px;
+            font-size: 18px;
         }
         .pattern-meta {
-            font-size: 10px;
-            color: var(--text-dim);
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
         }
 
         /* ── Tabs ── */
         .tabs {
             display: flex;
-            gap: 2px;
+            gap: 4px;
             margin-bottom: 0;
         }
         .tab {
-            padding: 8px 20px;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            color: var(--text-dim);
+            padding: 10px 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
             cursor: pointer;
             font-family: inherit;
-            font-size: 11px;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            transition: all 0.3s;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .tab:first-child { border-radius: 6px 0 0 6px; }
-        .tab:last-child { border-radius: 0 6px 6px 0; }
+        .tab:first-child { border-radius: 8px 0 0 8px; }
+        .tab:last-child { border-radius: 0 8px 8px 0; }
         .tab.active {
-            background: rgba(0,255,65,0.1);
-            color: var(--neon);
-            border-color: var(--neon-dim);
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
         }
-        .tab:hover { color: var(--neon); }
+        .tab:hover:not(.active) { 
+            color: var(--primary); 
+            border-color: var(--border-hover);
+            background: rgba(14, 165, 233, 0.05);
+        }
 
         .no-data {
             text-align: center;
-            padding: 40px;
-            color: var(--text-dim);
+            padding: 60px 40px;
+            color: var(--text-muted);
             font-size: 14px;
+            font-weight: 500;
         }
-        .no-data .icon { font-size: 40px; margin-bottom: 10px; }
+        .no-data .icon { 
+            font-size: 48px; 
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
 
         /* ── Pattern Tooltip ── */
         .pattern-hint {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
         }
         .pattern-hint .hint-icon {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 16px; height: 16px;
+            width: 18px; height: 18px;
             border-radius: 50%;
-            background: rgba(0,255,65,0.15);
-            color: var(--neon);
-            font-size: 10px;
+            background: rgba(14, 165, 233, 0.1);
+            color: var(--primary);
+            font-size: 11px;
             font-weight: 700;
             cursor: help;
             position: relative;
             flex-shrink: 0;
+            border: 1px solid rgba(14, 165, 233, 0.2);
         }
         .pattern-hint .hint-icon:hover {
-            background: rgba(0,255,65,0.3);
+            background: rgba(14, 165, 233, 0.2);
+            border-color: rgba(14, 165, 233, 0.4);
         }
         .pattern-tooltip {
             display: none;
             position: fixed;
             z-index: 9999;
             max-width: 340px;
-            padding: 12px 16px;
-            background: #111;
-            border: 1px solid var(--neon-dim);
-            border-radius: 8px;
+            padding: 14px 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
             color: var(--text);
-            font-size: 11px;
-            line-height: 1.5;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.6), var(--neon-glow);
+            font-size: 12px;
+            line-height: 1.6;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), var(--primary-glow);
             pointer-events: none;
+            backdrop-filter: blur(20px);
         }
         .pattern-tooltip .tt-title {
-            color: var(--neon);
+            color: var(--primary);
             font-weight: 700;
-            margin-bottom: 6px;
-            font-size: 12px;
+            margin-bottom: 8px;
+            font-size: 13px;
         }
         .pattern-tooltip .tt-dir,
         .trade-tooltip .tt-dir {
             display: inline-block;
-            padding: 1px 6px;
-            border-radius: 3px;
-            font-size: 9px;
-            font-weight: 700;
-            margin-left: 6px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 8px;
         }
         .pattern-tooltip .tt-dir.long,
-        .trade-tooltip .tt-dir.long { background: rgba(0,191,255,0.2); color: #00bfff; }
+        .trade-tooltip .tt-dir.long { 
+            background: rgba(14, 165, 233, 0.15); 
+            color: var(--primary); 
+            border: 1px solid rgba(14, 165, 233, 0.3);
+        }
         .pattern-tooltip .tt-dir.short,
-        .trade-tooltip .tt-dir.short { background: rgba(255,68,68,0.2); color: #ff4444; }
+        .trade-tooltip .tt-dir.short { 
+            background: rgba(239, 68, 68, 0.15); 
+            color: var(--danger); 
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
 
         .date-with-detail {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
         .trade-detail-icon {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 15px;
-            height: 15px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
-            border: 1px solid rgba(0,255,65,0.35);
-            color: var(--neon);
-            font-size: 9px;
+            border: 1px solid rgba(14, 165, 233, 0.25);
+            color: var(--primary);
+            font-size: 10px;
             cursor: pointer;
-            background: rgba(0,255,65,0.1);
+            background: rgba(14, 165, 233, 0.1);
+            transition: all 0.2s;
         }
         .trade-detail-icon:hover {
-            background: rgba(0,255,65,0.25);
-            border-color: rgba(0,255,65,0.7);
+            background: rgba(14, 165, 233, 0.2);
+            border-color: rgba(14, 165, 233, 0.5);
+            transform: scale(1.1);
         }
         .trade-tooltip {
             display: none;
             position: fixed;
             z-index: 10000;
             max-width: 360px;
-            padding: 12px 14px;
-            background: #0f120f;
-            border: 1px solid var(--neon-dim);
-            border-radius: 8px;
+            padding: 14px 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
             color: var(--text);
-            font-size: 11px;
-            line-height: 1.45;
-            box-shadow: 0 4px 22px rgba(0,0,0,0.65), var(--neon-glow);
+            font-size: 12px;
+            line-height: 1.6;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), var(--primary-glow);
+            backdrop-filter: blur(20px);
         }
         .trade-tooltip .tt-title {
-            color: var(--neon);
+            color: var(--primary);
             font-weight: 700;
-            margin-bottom: 8px;
-            font-size: 12px;
+            margin-bottom: 10px;
+            font-size: 13px;
         }
         .trade-tooltip .tt-row {
             display: flex;
             justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 4px;
+            gap: 16px;
+            margin-bottom: 6px;
+            font-size: 12px;
         }
-        .trade-tooltip .tt-key { color: var(--text-dim); }
+        .trade-tooltip .tt-key { 
+            color: var(--text-muted);
+            font-weight: 500;
+        }
 
         .sl-lock {
-            margin-left: 6px;
-            font-size: 9px;
-            padding: 1px 5px;
-            border-radius: 4px;
-            border: 1px solid rgba(255,215,0,0.45);
-            color: var(--gold);
-            background: rgba(255,215,0,0.1);
+            margin-left: 8px;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: var(--warning);
+            background: rgba(245, 158, 11, 0.1);
             letter-spacing: 0.3px;
             white-space: nowrap;
+        }
+
+        /* ── Mobile & Tablet Responsive ── */
+        @media (max-width: 1024px) {
+            .app { padding: 16px; }
+            
+            .header h1 { font-size: 28px; }
+            .header .subtitle { font-size: 12px; }
+            
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 12px;
+            }
+            
+            .stat-card { padding: 18px; }
+            .stat-value { font-size: 26px; }
+            .stat-label { font-size: 10px; }
+            
+            .chart-container { height: 220px; padding: 18px; }
+            
+            .section-title {
+                font-size: 14px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            
+            .search-box {
+                width: 100%;
+                font-size: 13px;
+            }
+            
+            .tabs {
+                width: 100%;
+                justify-content: stretch;
+            }
+            
+            .tab {
+                flex: 1;
+                font-size: 12px;
+                padding: 10px 12px;
+            }
+            
+            .pagination {
+                width: 100%;
+                justify-content: space-between;
+                font-size: 12px;
+            }
+            
+            .pattern-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .header .subtitle {
+                font-size: 11px;
+            }
+            
+            .app { padding: 12px; }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            
+            .stat-card { padding: 16px; }
+            .stat-value { font-size: 22px; }
+            .stat-label { font-size: 10px; }
+            
+            .chart-container { 
+                height: 200px; 
+                padding: 16px;
+            }
+            
+            .section { margin-bottom: 24px; }
+            
+            .section-title {
+                font-size: 13px;
+                margin-bottom: 12px;
+            }
+            
+            .table-wrapper {
+                border-radius: 8px;
+                max-height: 70vh;
+                overflow-y: auto;
+            }
+            
+            table {
+                min-width: 1000px;
+                font-size: 12px;
+            }
+            
+            thead th {
+                padding: 12px 10px;
+                font-size: 10px;
+            }
+            
+            td {
+                padding: 10px 8px;
+            }
+            
+            .badge {
+                font-size: 10px;
+                padding: 3px 8px;
+            }
+            
+            .datetime {
+                font-size: 11px;
+            }
+            
+            .pattern-tooltip,
+            .trade-tooltip {
+                max-width: 90vw;
+                font-size: 11px;
+            }
+            
+            .sl-lock {
+                font-size: 9px;
+                padding: 2px 6px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 20px;
+            }
+            
+            .header .subtitle {
+                font-size: 9px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            
+            .stat-card {
+                padding: 14px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                text-align: left;
+            }
+            
+            .stat-label {
+                font-size: 10px;
+                margin-bottom: 0;
+            }
+            
+            .stat-value {
+                font-size: 20px;
+            }
+            
+            .chart-container {
+                height: 180px;
+                padding: 12px;
+            }
+            
+            .tab {
+                font-size: 11px;
+                padding: 8px 10px;
+            }
+            
+            .select-box {
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+            
+            .page-btn {
+                font-size: 11px;
+                padding: 6px 12px;
+            }
+            
+            .pagination {
+                font-size: 11px;
+            }
+            
+            table {
+                font-size: 11px;
+            }
+            
+            thead th {
+                padding: 10px 8px;
+                font-size: 9px;
+            }
+            
+            td {
+                padding: 8px 6px;
+            }
+            
+            .badge {
+                font-size: 9px;
+                padding: 2px 6px;
+            }
+        }
+
+        /* Scrollbar styling for webkit browsers */
+        .table-wrapper::-webkit-scrollbar {
+            height: 10px;
+            width: 10px;
+        }
+        
+        .table-wrapper::-webkit-scrollbar-track {
+            background: var(--bg);
+            border-radius: 6px;
+        }
+        
+        .table-wrapper::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        
+        .table-wrapper::-webkit-scrollbar-thumb:hover {
+            background: var(--border-hover);
         }
     </style>
 </head>
@@ -490,7 +846,7 @@
         <div class="header">
             <h1><span class="pulse"></span>Bybit Trader</h1>
             <div class="subtitle">Perpetual Futures Signal Tracker — Performance Dashboard</div>
-            <div class="subtitle" style="margin-top:4px; color: var(--neon-dim); font-size: 11px;">by Hulusi DEMİR</div>
+            <div class="subtitle" style="margin-top:4px; color: var(--text-muted); font-size: 12px;">by Hulusi DEMİR</div>
         </div>
 
         <!-- Stats Bar -->
@@ -548,6 +904,8 @@
                             <th>Giriş</th>
                             <th>Şu An</th>
                             <th>PnL</th>
+                            <th>Boyut</th>
+                            <th>Aşama</th>
                             <th>SL</th>
                             <th>TP1</th>
                             <th>TP2</th>
@@ -598,6 +956,7 @@
                             <th>Grade</th>
                             <th class="sortable" onclick="sortTable('EntryPrice')">Giriş</th>
                             <th class="sortable" onclick="sortTable('ExitPrice')">Çıkış</th>
+                            <th>Boyut</th>
                             <th class="sortable" onclick="sortTable('Status')">Durum</th>
                             <th class="sortable" onclick="sortTable('PnLPercent')">PnL %</th>
                         </tr>
@@ -693,7 +1052,7 @@
         function renderActiveTrades(trades) {
             const tbody = document.getElementById('active-body');
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" class="no-data"><div class="icon">📡</div>Aktif pozisyon yok</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="13" class="no-data"><div class="icon">📡</div>Aktif pozisyon yok</td></tr>';
                 return;
             }
 
@@ -701,20 +1060,25 @@
             trades.sort((a, b) => new Date(b.OpenedAt) - new Date(a.OpenedAt));
 
             tbody.innerHTML = trades.map(t => {
+                const avgEntry = t.AvgEntryPrice || t.EntryPrice;
                 const livePnl = t.Direction === 'LONG'
-                    ? ((t.CurrentPrice - t.EntryPrice) / t.EntryPrice * 100)
-                    : ((t.EntryPrice - t.CurrentPrice) / t.EntryPrice * 100);
+                    ? ((t.CurrentPrice - avgEntry) / avgEntry * 100)
+                    : ((avgEntry - t.CurrentPrice) / avgEntry * 100);
                 const pnlClass = livePnl >= 0 ? 'pnl-positive' : 'pnl-negative';
                 const slCell = formatSLWithLock(t);
+                const sizeCell = formatSizeCell(t);
+                const phaseCell = formatPhaseCell(t);
 
                 return `<tr>
                     <td class="datetime">${formatDateTime(t.OpenedAt)}</td>
                     <td><strong>${t.Symbol}</strong></td>
                     <td><span class="badge badge-${t.Direction.toLowerCase()}">${t.Direction}</span></td>
                     <td>${patternWithHint(t.Pattern)}</td>
-                    <td>$${formatP(t.EntryPrice)}</td>
+                    <td>$${formatP(avgEntry)}</td>
                     <td>$${formatP(t.CurrentPrice)}</td>
                     <td class="${pnlClass}">${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%</td>
+                    <td>${sizeCell}</td>
+                    <td>${phaseCell}</td>
                     <td>${slCell}</td>
                     <td>$${formatP(t.TP1)}</td>
                     <td>$${formatP(t.TP2)}</td>
@@ -731,14 +1095,35 @@
         }
 
         function formatSLWithLock(t) {
+            if (!t.StopLoss) return '—';
             const base = `$${formatP(t.StopLoss)}`;
-            if (nearlyEqual(t.StopLoss, t.TP2)) {
-                return `${base}<span class="sl-lock">TP2 LOCK</span>`;
-            }
+            const avgEntry = t.AvgEntryPrice || t.EntryPrice;
             if (nearlyEqual(t.StopLoss, t.TP1)) {
                 return `${base}<span class="sl-lock">TP1 LOCK</span>`;
             }
+            if (nearlyEqual(t.StopLoss, avgEntry)) {
+                return `${base}<span class="sl-lock">BE LOCK</span>`;
+            }
             return base;
+        }
+
+        function formatSizeCell(t) {
+            const margin = t.MarginUsed || 0;
+            const remaining = t.RemainingQty || 0;
+            const total = t.TotalQty || 0;
+            if (!margin && !total) return '—';
+            return `<span title="Margin: $${margin.toFixed(0)} | Toplam: ${total.toFixed(4)} | Kalan: ${remaining.toFixed(4)}">$${margin.toFixed(0)}<br><span style="font-size:9px;color:var(--text-dim)">${remaining.toFixed(4)}/${total.toFixed(4)}</span></span>`;
+        }
+
+        function formatPhaseCell(t) {
+            const phase = t.TPPhase || '';
+            switch(phase) {
+                case 'WAITING_TP1': return '<span class="badge badge-active">TP1 Bekleniyor</span>';
+                case 'WAITING_TP2': return '<span class="badge badge-tp1">TP2 Bekleniyor</span>';
+                case 'WAITING_TP3': return '<span class="badge badge-tp2">TP3 Bekleniyor</span>';
+                case 'DONE': return '<span class="badge badge-tp3">Tamamlandı</span>';
+                default: return '<span style="color:var(--text-dim)">—</span>';
+            }
         }
 
         function handleSearch() {
@@ -811,7 +1196,7 @@
             document.getElementById('btn-next').disabled = currentPage === totalPages;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="no-data"><div class="icon">📋</div>Aramaya uygun işlem yok veya henüz işlem açılmadı</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="no-data"><div class="icon">📋</div>Aramaya uygun işlem yok veya henüz işlem açılmadı</td></tr>';
                 return;
             }
 
@@ -823,14 +1208,17 @@
                 const statusClass = `badge-${t.Status.toLowerCase().replace('_hit','').replace('_','')}`
                 const pnlClass = t.PnLPercent >= 0 ? 'pnl-positive' : 'pnl-negative';
 
+                const marginStr = t.MarginUsed ? `$${t.MarginUsed.toFixed(0)}` : '—';
+
                 return `<tr>
                     <td class="datetime">${renderHistoryDateCell(t)}</td>
                     <td><strong>${t.Symbol}</strong></td>
                     <td><span class="badge badge-${t.Direction.toLowerCase()}">${t.Direction}</span></td>
                     <td>${patternWithHint(t.Pattern)}</td>
                     <td><span class="badge badge-${t.Grade === 'A+' ? 'tp3' : 'tp1'}">${t.Grade}</span></td>
-                    <td>$${formatP(t.EntryPrice)}</td>
+                    <td>$${formatP(t.AvgEntryPrice || t.EntryPrice)}</td>
                     <td>${t.ExitPrice ? '$' + formatP(t.ExitPrice) : '—'}</td>
+                    <td>${marginStr}</td>
                     <td><span class="badge ${statusClass}">${t.Status}</span></td>
                     <td class="${pnlClass}">${t.Status === 'ACTIVE' ? '—' : (t.PnLPercent >= 0 ? '+' : '') + t.PnLPercent.toFixed(2) + '%'}</td>
                 </tr>`;
@@ -936,10 +1324,10 @@
             ctx.setLineDash([]);
 
             ctx.beginPath();
-            ctx.strokeStyle = '#00ff41';
-            ctx.lineWidth = 2;
-            ctx.shadowColor = '#00ff41';
-            ctx.shadowBlur = 8;
+            ctx.strokeStyle = '#0ea5e9';
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = '#0ea5e9';
+            ctx.shadowBlur = 10;
             for (let i = 0; i < cum.length; i++) {
                 const x = padding + (i / (cum.length - 1)) * w;
                 const y = padding + ((maxPnl - cum[i]) / range) * h;
@@ -955,14 +1343,14 @@
             ctx.lineTo(padding, padding + h);
             ctx.closePath();
             const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            grad.addColorStop(0, 'rgba(0,255,65,0.15)');
-            grad.addColorStop(1, 'rgba(0,255,65,0)');
+            grad.addColorStop(0, 'rgba(14, 165, 233, 0.15)');
+            grad.addColorStop(1, 'rgba(14, 165, 233, 0)');
             ctx.fillStyle = grad;
             ctx.fill();
 
             const lastVal = cum[cum.length - 1];
-            ctx.fillStyle = lastVal >= 0 ? '#00ff41' : '#ff4444';
-            ctx.font = 'bold 14px JetBrains Mono';
+            ctx.fillStyle = lastVal >= 0 ? '#0ea5e9' : '#ef4444';
+            ctx.font = 'bold 15px Inter';
             ctx.textAlign = 'left';
             ctx.fillText((lastVal >= 0 ? '+' : '') + lastVal.toFixed(2) + '%', lastX + 5, lastY + 4);
         }
@@ -999,9 +1387,9 @@
         const columns = Math.floor(matrixCanvas.width / fontSize);
         const drops = Array(columns).fill(1);
         function drawMatrix() {
-            matrixCtx.fillStyle = 'rgba(10, 10, 10, 0.04)';
+            matrixCtx.fillStyle = 'rgba(10, 15, 30, 0.04)';
             matrixCtx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
-            matrixCtx.fillStyle = '#00ff41';
+            matrixCtx.fillStyle = '#0ea5e9';
             matrixCtx.font = fontSize + 'px monospace';
             for (let i = 0; i < drops.length; i++) {
                 const text = chars[Math.floor(Math.random() * chars.length)];
@@ -1050,6 +1438,9 @@
 
             const directionClass = t.Direction === 'LONG' ? 'long' : 'short';
             const stopMoveRows = buildStopMoveRows(t);
+            const marginStr = t.MarginUsed ? `$${t.MarginUsed.toFixed(0)}` : '—';
+            const avgEntry = t.AvgEntryPrice || t.EntryPrice;
+            const dcaStr = t.DCACount > 0 ? `${t.DCACount} DCA` : 'Yok';
             tradeTipEl.innerHTML = `
                 <div class="tt-title">${t.Symbol} <span class="tt-dir ${directionClass}">${t.Direction}</span></div>
                 <div class="tt-row"><span class="tt-key">Pattern</span><span>${t.Pattern}</span></div>
@@ -1057,8 +1448,10 @@
                 ${stopMoveRows}
                 <div class="tt-row"><span class="tt-key">Çıkış Zamanı</span><span>${formatDateTime(t.ClosedAt)}</span></div>
                 <div class="tt-row"><span class="tt-key">Süre</span><span>${formatDuration(t.OpenedAt, t.ClosedAt)}</span></div>
-                <div class="tt-row"><span class="tt-key">Giriş</span><span>$${formatP(t.EntryPrice)}</span></div>
+                <div class="tt-row"><span class="tt-key">Giriş</span><span>$${formatP(avgEntry)}</span></div>
                 <div class="tt-row"><span class="tt-key">Çıkış</span><span>${t.ExitPrice ? '$' + formatP(t.ExitPrice) : '—'}</span></div>
+                <div class="tt-row"><span class="tt-key">Margin</span><span>${marginStr}</span></div>
+                <div class="tt-row"><span class="tt-key">DCA</span><span>${dcaStr}</span></div>
                 <div class="tt-row"><span class="tt-key">Durum</span><span>${t.Status}</span></div>
                 <div class="tt-row"><span class="tt-key">PnL</span><span>${t.PnLPercent >= 0 ? '+' : ''}${t.PnLPercent.toFixed(2)}%</span></div>
             `;

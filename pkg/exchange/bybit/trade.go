@@ -608,3 +608,38 @@ func (tc *TradeClient) GetWalletBalance() (float64, error) {
 
 	return 0, nil
 }
+
+// SetTradingStop sets a stop-loss on an existing position using Bybit's set-trading-stop API.
+// positionIdx: 1=Long, 2=Short (hedge mode)
+func (tc *TradeClient) SetTradingStop(symbol string, positionIdx int, stopLoss float64) error {
+	slStr, err := tc.FormatPrice(symbol, stopLoss)
+	if err != nil {
+		return fmt.Errorf("format stop loss price: %w", err)
+	}
+
+	_, err = tc.doPost("/v5/position/set-trading-stop", map[string]interface{}{
+		"category":    "linear",
+		"symbol":      symbol,
+		"stopLoss":    slStr,
+		"slTriggerBy": "LastPrice",
+		"positionIdx": positionIdx,
+	})
+	if err != nil {
+		return fmt.Errorf("set trading stop: %w", err)
+	}
+
+	log.Printf("[Trade] 🛡️ Stop loss set: %s posIdx=%d SL=%s", symbol, positionIdx, slStr)
+	return nil
+}
+
+// CancelAllOrders cancels all open orders for a symbol
+func (tc *TradeClient) CancelAllOrders(symbol string) error {
+	_, err := tc.doPost("/v5/order/cancel-all", map[string]interface{}{
+		"category": "linear",
+		"symbol":   symbol,
+	})
+	if err != nil {
+		return fmt.Errorf("cancel all orders: %w", err)
+	}
+	return nil
+}

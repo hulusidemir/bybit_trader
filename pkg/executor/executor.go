@@ -218,6 +218,67 @@ func (e *Executor) ClosePartial(trade *models.Trade, fraction float64) (orderID 
 	return result.OrderID, closedQty, nil
 }
 
+// ── TP Limit Orders ────────────────────────────────────────
+
+// PlaceTPLimitOrder places a reduce-only limit order at a TP price level.
+// fraction: portion of remainingQty to close (0.0 to 1.0)
+func (e *Executor) PlaceTPLimitOrder(trade *models.Trade, tpPrice float64, fraction float64) (orderID string, orderQty float64, err error) {
+	closeQty := trade.RemainingQty * fraction
+	if closeQty <= 0 {
+		return "", 0, fmt.Errorf("invalid TP close qty for %s", trade.Symbol)
+	}
+
+	qtyStr, err := e.trade.FormatQty(trade.Symbol, closeQty)
+	if err != nil {
+		return "", 0, fmt.Errorf("format TP qty: %w", err)
+	}
+
+	priceStr, err := e.trade.FormatPrice(trade.Symbol, tpPrice)
+	if err != nil {
+		return "", 0, fmt.Errorf("format TP price: %w", err)
+	}
+
+	orderQty, _ = strconv.ParseFloat(qtyStr, 64)
+
+	// Opposite side for close
+	side := "Sell"
+	if trade.Direction == models.DirectionShort {
+		side = "Buy"
+	}
+
+	result, err := e.trade.PlaceOrder(bybit.PlaceOrderReq{
+		Symbol:      trade.Symbol,
+		Side:        side,
+		OrderType:   "Limit",
+		Qty:         qtyStr,
+		Price:       priceStr,
+		TimeInForce: "GTC",
+		ReduceOnly:  true,
+	})
+	if err != nil {
+		return "", 0, fmt.Errorf("place TP limit order: %w", err)
+	}
+
+	log.Printf("[Executor] 📋 TP limit order placed: %s %s qty=%s price=%s orderID=%s",
+		trade.Symbol, trade.Direction, qtyStr, priceStr, result.OrderID)
+
+	return result.OrderID, orderQty, nil
+}
+
+// SetTradingStop sets position-level stop loss via Bybit API
+func (e *Executor) SetTradingStop(symbol string, direction models.SignalDirection, stopLoss float64) error {
+	posIdx := 1 // Long
+	if direction == models.DirectionShort {
+		posIdx = 2 // Short
+	}
+	return e.trade.SetTradingStop(symbol, posIdx, stopLoss)
+}
+
+// CancelAllOrders cancels all open orders for a symbol
+func (e *Executor) CancelAllOrders(symbol string) error {
+	return e.trade.CancelAllOrders(symbol)
+}
+
 // ── Full Close ─────────────────────────────────────────────
 
 // ClosePosition fully closes the remaining position
