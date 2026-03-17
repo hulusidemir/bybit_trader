@@ -12,7 +12,7 @@ User=root
 WorkingDirectory=/root/bybit_trader
 
 # 'go run' üretim ortamı için iyi değildir, derlenmiş binary'i çalıştırmak en doğrusudur.
-# Öncesinde proje dizininde "go build -o bybit_trader ./cmd/scanner/" komutunu çalıştırdığınızdan emin olun.
+# Öncesinde proje dizininde "go build -o bybit_trader ./cmd/trader/" komutunu çalıştırdığınızdan emin olun.
 ExecStart=/root/bybit_trader/bybit_trader
 
 # Hata durumunda bekle ve yeniden başlat
