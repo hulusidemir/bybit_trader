@@ -1,0 +1,30 @@
+# Build artifacts
+bin/
+bybit_trader
+*.exe
+*.out
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.prof
+
+# Config files (CRITICAL: NEVER COMMIT THESE)
+.env
+config.json
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+
+# Dependencies
+vendor/
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

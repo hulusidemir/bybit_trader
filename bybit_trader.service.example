@@ -1,0 +1,28 @@
+[Unit]
+Description=Bybit Trader - Institutional Crypto Signal Generator
+Documentation=https://github.com/kullaniciadiniz/bybit_trader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Değiştirmeniz gereken yerler: User ve WorkingDirectory
+User=root
+# Sunucuda projenin bulunduğu tam yol (örneğin: /root/bybit_trader veya /home/ubuntu/bybit_trader)
+WorkingDirectory=/root/bybit_trader
+
+# 'go run' üretim ortamı için iyi değildir, derlenmiş binary'i çalıştırmak en doğrusudur.
+# Öncesinde proje dizininde "go build -o bybit_trader ./cmd/scanner/" komutunu çalıştırdığınızdan emin olun.
+ExecStart=/root/bybit_trader/bybit_trader
+
+# Hata durumunda bekle ve yeniden başlat
+Restart=always
+RestartSec=5
+
+# Logların Ubuntu syslog'a yazılması
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=bybit_trader
+
+[Install]
+WantedBy=multi-user.target
