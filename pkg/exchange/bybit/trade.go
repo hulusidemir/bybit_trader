@@ -33,6 +33,9 @@ type TradeClient struct {
 	// Instrument precision cache
 	instruments   map[string]*InstrumentDetail
 	instrumentsMu sync.RWMutex
+
+	// Position mode: always hedge (two-way)
+	hedgeMode bool
 }
 
 type InstrumentDetail struct {
@@ -96,6 +99,7 @@ func NewTradeClient(apiKey, apiSecret string, testnet bool) *TradeClient {
 		baseURL:     base,
 		limiter:     make(chan struct{}, 5),
 		instruments: make(map[string]*InstrumentDetail),
+		hedgeMode:   true,
 	}
 
 	for i := 0; i < 5; i++ {
@@ -383,13 +387,33 @@ func (tc *TradeClient) SetLeverage(symbol string, leverage int) error {
 
 // PlaceOrder creates a new order on Bybit
 func (tc *TradeClient) PlaceOrder(req PlaceOrderReq) (*OrderResult, error) {
+	// Determine positionIdx based on position mode
+	posIdx := 0 // one-way mode
+	if tc.hedgeMode {
+		if req.ReduceOnly {
+			// Reduce-only: close the opposite side
+			if req.Side == "Buy" {
+				posIdx = 2 // closing a Short
+			} else {
+				posIdx = 1 // closing a Long
+			}
+		} else {
+			// Opening: Buy = Long side (1), Sell = Short side (2)
+			if req.Side == "Buy" {
+				posIdx = 1
+			} else {
+				posIdx = 2
+			}
+		}
+	}
+
 	body := map[string]interface{}{
 		"category":    "linear",
 		"symbol":      req.Symbol,
 		"side":        req.Side,
 		"orderType":   req.OrderType,
 		"qty":         req.Qty,
-		"positionIdx": 0, // one-way mode
+		"positionIdx": posIdx,
 	}
 
 	if req.OrderType == "Limit" {
@@ -548,22 +572,6 @@ func (tc *TradeClient) GetPosition(symbol string) (*PositionDetail, error) {
 		Leverage:      p.Leverage,
 		LiqPrice:      p.LiqPrice,
 	}, nil
-}
-
-// SwitchToOneWayMode ensures account uses one-way position mode for linear
-func (tc *TradeClient) SwitchToOneWayMode() error {
-	_, err := tc.doPost("/v5/position/switch-mode", map[string]interface{}{
-		"category": "linear",
-		"mode":     0, // 0 = merged single (one-way)
-	})
-	if err != nil {
-		// 110025 = position mode not modified (already one-way)
-		if strings.Contains(err.Error(), "110025") {
-			return nil
-		}
-		return err
-	}
-	return nil
 }
 
 // GetWalletBalance returns available USDT balance

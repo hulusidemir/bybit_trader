@@ -66,11 +66,6 @@ func main() {
 	if cfg.TradingEnabled {
 		tradeClient := bybit.NewTradeClient(cfg.BybitAPIKey, cfg.BybitAPISecret, cfg.BybitTestnet)
 
-		// Switch to one-way position mode
-		if err := tradeClient.SwitchToOneWayMode(); err != nil {
-			log.Printf("Warning: switch to one-way mode: %v", err)
-		}
-
 		// Load instrument precision data
 		if err := tradeClient.LoadInstruments(); err != nil {
 			log.Fatalf("Failed to load instrument data: %v", err)
