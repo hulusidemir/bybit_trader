@@ -33,6 +33,9 @@ type Config struct {
 	ATRTP2Mult  float64 // ATR multiplier for TP2, e.g. 3.5
 	ATRTP3Mult  float64 // ATR multiplier for TP3, e.g. 6.0
 
+	// ── Funding Rate Filter ───────────────────────────
+	ShortFundingRateLimit float64 // skip SHORT if funding < this (e.g. -0.0001)
+
 	// ── Blacklist & Per-Coin Overrides ─────────────────
 	BlacklistedCoins    map[string]bool    // COIN_BLACKLIST=BTCUSDT,ETHUSDT
 	CoinMarginOverrides map[string]float64 // COIN_MARGIN_OVERRIDES=BTCUSDT:500,ETHUSDT:300
@@ -68,6 +71,9 @@ func Load() (*Config, error) {
 		TP3Pct:     getEnvFloat("TP3_PCT", 5.0),
 		ATRTP2Mult: getEnvFloat("ATR_TP2_MULT", 3.5),
 		ATRTP3Mult: getEnvFloat("ATR_TP3_MULT", 6.0),
+
+		// Funding rate filter
+		ShortFundingRateLimit: getEnvFloat("SHORT_FUNDING_RATE_LIMIT", -0.008),
 
 		// Blacklist & per-coin overrides
 		BlacklistedCoins:    parseBlacklist(os.Getenv("COIN_BLACKLIST")),

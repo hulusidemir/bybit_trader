@@ -11,13 +11,14 @@ import (
 
 // TPConfig holds configurable TP/DCA percentages
 type TPConfig struct {
-	TP1Pct          float64            // e.g. 1.0
-	TP2Pct          float64            // e.g. 2.5
-	TP3Pct          float64            // e.g. 5.0
-	ATRTP2Mult      float64            // e.g. 3.5
-	ATRTP3Mult      float64            // e.g. 6.0
-	DCAThresholdPct float64            // default DCA %, e.g. 20.0
-	CoinDCAOverrides map[string]float64 // per-coin DCA overrides
+	TP1Pct                float64            // e.g. 1.0
+	TP2Pct                float64            // e.g. 2.5
+	TP3Pct                float64            // e.g. 5.0
+	ATRTP2Mult            float64            // e.g. 3.5
+	ATRTP3Mult            float64            // e.g. 6.0
+	DCAThresholdPct       float64            // default DCA %, e.g. 20.0
+	CoinDCAOverrides      map[string]float64 // per-coin DCA overrides
+	ShortFundingRateLimit float64            // skip SHORT if funding < this (e.g. -0.0001)
 }
 
 // DCAForCoin returns the DCA % for a given symbol (override or default)
@@ -31,12 +32,13 @@ func (t TPConfig) DCAForCoin(symbol string) float64 {
 // DefaultTPConfig returns sensible defaults
 func DefaultTPConfig() TPConfig {
 	return TPConfig{
-		TP1Pct:          1.0,
-		TP2Pct:          2.5,
-		TP3Pct:          5.0,
-		ATRTP2Mult:      3.5,
-		ATRTP3Mult:      6.0,
-		DCAThresholdPct: 20.0,
+		TP1Pct:                1.0,
+		TP2Pct:                2.5,
+		TP3Pct:                5.0,
+		ATRTP2Mult:            3.5,
+		ATRTP3Mult:            6.0,
+		DCAThresholdPct:       20.0,
+		ShortFundingRateLimit: -0.008,
 	}
 }
 
@@ -59,6 +61,15 @@ func GenerateSignals(mtfResults []analysis.MTFResult, tpCfg TPConfig) []*models.
 		}
 
 		// (R:R zorunluluğu kullanıcının isteği üzerine tamamen kaldırıldı)
+
+		// ══════════════════════════════════════════════════
+		// QUALITY GATE 2: Funding rate filter for SHORT
+		// Very negative funding = market already heavily short,
+		// high short squeeze risk + expensive funding cost
+		// ══════════════════════════════════════════════════
+		if sig.Direction == models.DirectionShort && tpCfg.ShortFundingRateLimit < 0 && sig.FundingRate < tpCfg.ShortFundingRateLimit {
+			continue
+		}
 
 		// ══════════════════════════════════════════════════
 		// QUALITY GATE 3: Require orderbook support

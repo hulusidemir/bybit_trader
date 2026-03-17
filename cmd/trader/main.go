@@ -238,13 +238,14 @@ func runScan(
 
 			// Generate signals
 			tpCfg := signals.TPConfig{
-				TP1Pct:           cfg.TP1Pct,
-				TP2Pct:           cfg.TP2Pct,
-				TP3Pct:           cfg.TP3Pct,
-				ATRTP2Mult:       cfg.ATRTP2Mult,
-				ATRTP3Mult:       cfg.ATRTP3Mult,
-				DCAThresholdPct:  cfg.DCAThresholdPct,
-				CoinDCAOverrides: cfg.CoinDCAOverrides,
+				TP1Pct:                cfg.TP1Pct,
+				TP2Pct:                cfg.TP2Pct,
+				TP3Pct:                cfg.TP3Pct,
+				ATRTP2Mult:            cfg.ATRTP2Mult,
+				ATRTP3Mult:            cfg.ATRTP3Mult,
+				DCAThresholdPct:       cfg.DCAThresholdPct,
+				CoinDCAOverrides:      cfg.CoinDCAOverrides,
+				ShortFundingRateLimit: cfg.ShortFundingRateLimit,
 			}
 			sigs := signals.GenerateSignals(mtfResults, tpCfg)
 			if len(sigs) == 0 {

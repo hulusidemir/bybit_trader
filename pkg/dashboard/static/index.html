@@ -123,6 +123,20 @@
         }
         .stat-value.negative { color: var(--red); text-shadow: 0 0 10px var(--red); }
         .stat-value.gold { color: var(--gold); text-shadow: 0 0 10px var(--gold); }
+        .stat-sub-badge {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.6px;
+            color: var(--gold);
+            border: 1px solid rgba(255, 215, 0, 0.45);
+            background: rgba(255, 215, 0, 0.12);
+            text-transform: uppercase;
+            text-shadow: none;
+        }
 
         /* ── Sections ── */
         .section {
@@ -500,6 +514,7 @@
             <div class="stat-card">
                 <div class="stat-label">Kazanç/Kayıp</div>
                 <div class="stat-value" id="stat-wl">0/0</div>
+                <div class="stat-sub-badge" id="stat-cancelled" style="display:none"></div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">En İyi</div>
@@ -834,7 +849,15 @@
             document.getElementById('stat-total').textContent = s.TotalTrades || 0;
             document.getElementById('stat-active').textContent = s.ActiveTrades || 0;
             const cancelled = s.CancelledTrades || 0;
-            document.getElementById('stat-wl').textContent = `${s.WinTrades||0}/${s.LossTrades||0}` + (cancelled > 0 ? ` (${cancelled} iptal)` : '');
+            document.getElementById('stat-wl').textContent = `${s.WinTrades||0}/${s.LossTrades||0}`;
+            const cancelledEl = document.getElementById('stat-cancelled');
+            if (cancelled > 0) {
+                cancelledEl.style.display = 'inline-block';
+                cancelledEl.textContent = `${cancelled} iptal`;
+            } else {
+                cancelledEl.style.display = 'none';
+                cancelledEl.textContent = '';
+            }
             const best = document.getElementById('stat-best');
             if (s.BestTrade) best.textContent = '+' + s.BestTrade.toFixed(2) + '%';
             document.getElementById('stat-tp').textContent = `${s.TP1Count||0} / ${s.TP2Count||0} / ${s.TP3Count||0}`;
