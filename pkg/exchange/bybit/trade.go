@@ -160,6 +160,10 @@ func (tc *TradeClient) doPost(endpoint string, body map[string]interface{}) (jso
 		return nil, fmt.Errorf("read body: %w", err)
 	}
 
+	if len(respBody) == 0 {
+		return nil, fmt.Errorf("empty response body (HTTP %d) for %s", resp.StatusCode, endpoint)
+	}
+
 	var result struct {
 		RetCode int             `json:"retCode"`
 		RetMsg  string          `json:"retMsg"`
@@ -611,25 +615,36 @@ func (tc *TradeClient) GetWalletBalance() (float64, error) {
 
 // SetTradingStop sets a stop-loss on an existing position using Bybit's set-trading-stop API.
 // positionIdx: 1=Long, 2=Short (hedge mode)
+// Retries up to 3 times on transient failures (empty response, network errors).
 func (tc *TradeClient) SetTradingStop(symbol string, positionIdx int, stopLoss float64) error {
 	slStr, err := tc.FormatPrice(symbol, stopLoss)
 	if err != nil {
 		return fmt.Errorf("format stop loss price: %w", err)
 	}
 
-	_, err = tc.doPost("/v5/position/set-trading-stop", map[string]interface{}{
+	payload := map[string]interface{}{
 		"category":    "linear",
 		"symbol":      symbol,
 		"stopLoss":    slStr,
 		"slTriggerBy": "LastPrice",
 		"positionIdx": positionIdx,
-	})
-	if err != nil {
-		return fmt.Errorf("set trading stop: %w", err)
 	}
 
-	log.Printf("[Trade] 🛡️ Stop loss set: %s posIdx=%d SL=%s", symbol, positionIdx, slStr)
-	return nil
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		_, err = tc.doPost("/v5/position/set-trading-stop", payload)
+		if err == nil {
+			log.Printf("[Trade] 🛡️ Stop loss set: %s posIdx=%d SL=%s", symbol, positionIdx, slStr)
+			return nil
+		}
+		lastErr = err
+		log.Printf("[Trade] ⚠️ SetTradingStop attempt %d/3 failed for %s: %v", attempt, symbol, err)
+		if attempt < 3 {
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
+	}
+
+	return fmt.Errorf("set trading stop after 3 attempts: %w", lastErr)
 }
 
 // CancelAllOrders cancels all open orders for a symbol
