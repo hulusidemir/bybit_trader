@@ -235,12 +235,13 @@ type Trade struct {
 }
 
 type TradeStats struct {
-	TotalTrades    int
-	WinTrades      int
-	LossTrades     int
-	ActiveTrades   int
-	WinRate        float64
-	TotalPnL       float64
+	TotalTrades      int
+	WinTrades        int
+	LossTrades       int
+	ActiveTrades     int
+	CancelledTrades  int
+	WinRate          float64
+	TotalPnL         float64
 	AvgWin         float64
 	AvgLoss        float64
 	BestTrade      float64

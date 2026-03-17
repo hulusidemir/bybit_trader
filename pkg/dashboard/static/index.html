@@ -833,7 +833,8 @@
             }
             document.getElementById('stat-total').textContent = s.TotalTrades || 0;
             document.getElementById('stat-active').textContent = s.ActiveTrades || 0;
-            document.getElementById('stat-wl').textContent = `${s.WinTrades||0}/${s.LossTrades||0}`;
+            const cancelled = s.CancelledTrades || 0;
+            document.getElementById('stat-wl').textContent = `${s.WinTrades||0}/${s.LossTrades||0}` + (cancelled > 0 ? ` (${cancelled} iptal)` : '');
             const best = document.getElementById('stat-best');
             if (s.BestTrade) best.textContent = '+' + s.BestTrade.toFixed(2) + '%';
             document.getElementById('stat-tp').textContent = `${s.TP1Count||0} / ${s.TP2Count||0} / ${s.TP3Count||0}`;

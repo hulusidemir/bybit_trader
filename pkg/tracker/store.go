@@ -305,6 +305,12 @@ func (s *Store) GetStats() (*models.TradeStats, error) {
 			continue
 		}
 
+		// Skip cancelled/pending orders — they never filled, not real trades
+		if t.Status == models.TradeCancelled || t.Status == models.TradePending {
+			stats.CancelledTrades++
+			continue
+		}
+
 		if t.PnLPercent > 0 {
 			stats.WinTrades++
 			stats.TotalPnL += t.PnLPercent
