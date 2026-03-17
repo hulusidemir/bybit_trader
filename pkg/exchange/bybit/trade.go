@@ -632,7 +632,7 @@ func (tc *TradeClient) SetTradingStop(symbol string, positionIdx int, stopLoss f
 
 	var lastErr error
 	for attempt := 1; attempt <= 3; attempt++ {
-		_, err = tc.doPost("/v5/position/set-trading-stop", payload)
+		_, err = tc.doPost("/v5/position/trading-stop", payload)
 		if err == nil {
 			log.Printf("[Trade] 🛡️ Stop loss set: %s posIdx=%d SL=%s", symbol, positionIdx, slStr)
 			return nil
