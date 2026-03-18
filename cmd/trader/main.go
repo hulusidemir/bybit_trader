@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -229,14 +230,31 @@ func runScan(
 	var wg sync.WaitGroup
 	var allSignals []*models.Signal
 	var signalMu sync.Mutex
+	totalToScan := len(filtered)
+	var scannedCount int32
 
-	for _, coin := range filtered {
+	if totalToScan == 0 {
+		log.Printf("[Scan] No coins passed volume filter in this cycle")
+	}
+
+	for i, coin := range filtered {
 		wg.Add(1)
 		sem <- struct{}{}
+		index := i + 1
 
-		go func(c *models.Coin) {
+		go func(c *models.Coin, scanIndex int) {
 			defer wg.Done()
 			defer func() { <-sem }()
+
+			coinStart := time.Now()
+			signalCount := 0
+			log.Printf("[Scan] ▶ %s (%d/%d) analyzing...", c.Symbol, scanIndex, totalToScan)
+
+			defer func() {
+				completed := atomic.AddInt32(&scannedCount, 1)
+				log.Printf("[Scan] ✓ %s (%d/%d) done in %.1fs, signals=%d, progress=%d/%d",
+					c.Symbol, scanIndex, totalToScan, time.Since(coinStart).Seconds(), signalCount, completed, totalToScan)
+			}()
 
 			// Analyze
 			coinAnalysis := engine.AnalyzeCoin(c)
@@ -265,11 +283,12 @@ func runScan(
 			if len(sigs) == 0 {
 				return
 			}
+			signalCount = len(sigs)
 
 			signalMu.Lock()
 			allSignals = append(allSignals, sigs...)
 			signalMu.Unlock()
-		}(coin)
+		}(coin, index)
 	}
 
 	wg.Wait()
