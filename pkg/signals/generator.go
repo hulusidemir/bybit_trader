@@ -14,8 +14,6 @@ type TPConfig struct {
 	TP1Pct                float64            // e.g. 1.0
 	TP2Pct                float64            // e.g. 2.5
 	TP3Pct                float64            // e.g. 5.0
-	ATRTP2Mult            float64            // e.g. 3.5
-	ATRTP3Mult            float64            // e.g. 6.0
 	DCAThresholdPct       float64            // default DCA %, e.g. 20.0
 	CoinDCAOverrides      map[string]float64 // per-coin DCA overrides
 	ShortFundingRateLimit float64            // skip SHORT if funding < this (e.g. -0.0001)
@@ -35,8 +33,6 @@ func DefaultTPConfig() TPConfig {
 		TP1Pct:                1.0,
 		TP2Pct:                2.5,
 		TP3Pct:                5.0,
-		ATRTP2Mult:            3.5,
-		ATRTP3Mult:            6.0,
 		DCAThresholdPct:       20.0,
 		ShortFundingRateLimit: -0.008,
 	}
@@ -75,34 +71,9 @@ func GenerateSignals(mtfResults []analysis.MTFResult, tpCfg TPConfig) []*models.
 		}
 
 		// ══════════════════════════════════════════════════
-		// QUALITY GATE 4: Minimum 2 TF alignment
+		// QUALITY GATE 4: CVD confirmation (spot + futures sync)
 		// ══════════════════════════════════════════════════
-		if r.AlignedTFs < 2 {
-			continue
-		}
-
-		// ══════════════════════════════════════════════════
-		// QUALITY GATE 5: EMA structure must confirm
-		// EMA9 > EMA21 for LONG, EMA9 < EMA21 for SHORT
-		// ══════════════════════════════════════════════════
-		if !r.HasEMAConfirm {
-			continue
-		}
-
-		// ══════════════════════════════════════════════════
-		// QUALITY GATE 6: Price trend must confirm direction
-		// Both 5m AND 15m must show matching price direction
-		// ══════════════════════════════════════════════════
-		if !checkPriceTrendConfirm(r, sig.Direction) {
-			continue
-		}
-
-		// ══════════════════════════════════════════════════
-		// QUALITY GATE 7: Price range position filter
-		// TIGHTER: 25-75 zone only (was 20-80)
-		// Prevents chasing extended moves
-		// ══════════════════════════════════════════════════
-		if !checkPriceRangeFilter(r, sig.Direction) {
+		if !r.HasCVDConfirm {
 			continue
 		}
 
@@ -110,47 +81,6 @@ func GenerateSignals(mtfResults []analysis.MTFResult, tpCfg TPConfig) []*models.
 	}
 
 	return signals
-}
-
-// checkPriceTrendConfirm ensures both 5m AND 15m show price moving in signal direction.
-// Scalper needs short-term momentum confirmation from both low timeframes.
-func checkPriceTrendConfirm(r analysis.MTFResult, dir models.SignalDirection) bool {
-	m5, has5 := r.Metrics["5"]
-	m15, has15 := r.Metrics["15"]
-
-	// Both 5m and 15m must exist and confirm
-	if !has5 || !has15 {
-		return false
-	}
-
-	if dir == models.DirectionLong {
-		return m5.PriceTrend >= models.TrendUp && m15.PriceTrend >= models.TrendUp
-	}
-	return m5.PriceTrend <= models.TrendDown && m15.PriceTrend <= models.TrendDown
-}
-
-// checkPriceRangeFilter prevents buying at top and shorting at bottom.
-// Uses 15m timeframe for range context (~7.5 hours with 30 candles).
-func checkPriceRangeFilter(r analysis.MTFResult, dir models.SignalDirection) bool {
-	// Primary: 15m range (30 candles = 7.5h context)
-	// Fallback: 60m if 15m unavailable
-	var m *models.TimeframeMetrics
-	if m15, ok := r.Metrics["15"]; ok && m15.PriceRangePos != 50 {
-		m = m15
-	} else if m60, ok := r.Metrics["60"]; ok && m60.PriceRangePos != 50 {
-		m = m60
-	}
-	if m == nil {
-		return true // no range data = allow
-	}
-
-	if dir == models.DirectionLong && m.PriceRangePos > 75 {
-		return false // price already at top — don't LONG
-	}
-	if dir == models.DirectionShort && m.PriceRangePos < 25 {
-		return false // price already at bottom — don't SHORT
-	}
-	return true
 }
 
 func buildSignal(r analysis.MTFResult, tpCfg TPConfig) *models.Signal {
@@ -246,28 +176,10 @@ func calcLongLevels(price float64, m *models.TimeframeMetrics, tpCfg TPConfig) (
 
 	entryMid := (entryLow + entryHigh) / 2
 
-	// ── TP1: configurable % from entry ──────────────────
+	// Percentage-based TP levels
 	tp1 = entryMid * (1 + tpCfg.TP1Pct/100)
-
-	// ── TP2: ATR-based with minimum floor ─────────────
-	if m.ATR > 0 {
-		tp2 = entryMid + m.ATR*tpCfg.ATRTP2Mult
-	} else {
-		tp2 = entryMid * (1 + tpCfg.TP2Pct/100)
-	}
-	if tp2 < entryMid*(1+tpCfg.TP2Pct/100) {
-		tp2 = entryMid * (1 + tpCfg.TP2Pct/100)
-	}
-
-	// ── TP3: ATR-based with minimum floor ─────────────
-	if m.ATR > 0 {
-		tp3 = entryMid + m.ATR*tpCfg.ATRTP3Mult
-	} else {
-		tp3 = entryMid * (1 + tpCfg.TP3Pct/100)
-	}
-	if tp3 < entryMid*(1+tpCfg.TP3Pct/100) {
-		tp3 = entryMid * (1 + tpCfg.TP3Pct/100)
-	}
+	tp2 = entryMid * (1 + tpCfg.TP2Pct/100)
+	tp3 = entryMid * (1 + tpCfg.TP3Pct/100)
 
 	return
 }
@@ -284,28 +196,10 @@ func calcShortLevels(price float64, m *models.TimeframeMetrics, tpCfg TPConfig) 
 
 	entryMid := (entryLow + entryHigh) / 2
 
-	// ── TP1: configurable % from entry ──────────────────
+	// Percentage-based TP levels
 	tp1 = entryMid * (1 - tpCfg.TP1Pct/100)
-
-	// ── TP2: ATR-based with minimum floor ─────────────
-	if m.ATR > 0 {
-		tp2 = entryMid - m.ATR*tpCfg.ATRTP2Mult
-	} else {
-		tp2 = entryMid * (1 - tpCfg.TP2Pct/100)
-	}
-	if tp2 > entryMid*(1-tpCfg.TP2Pct/100) {
-		tp2 = entryMid * (1 - tpCfg.TP2Pct/100)
-	}
-
-	// ── TP3: ATR-based with minimum floor ─────────────
-	if m.ATR > 0 {
-		tp3 = entryMid - m.ATR*tpCfg.ATRTP3Mult
-	} else {
-		tp3 = entryMid * (1 - tpCfg.TP3Pct/100)
-	}
-	if tp3 > entryMid*(1-tpCfg.TP3Pct/100) {
-		tp3 = entryMid * (1 - tpCfg.TP3Pct/100)
-	}
+	tp2 = entryMid * (1 - tpCfg.TP2Pct/100)
+	tp3 = entryMid * (1 - tpCfg.TP3Pct/100)
 
 	return
 }

@@ -30,8 +30,7 @@ type Config struct {
 	TP1Pct      float64 // TP1 target %, e.g. 1.0
 	TP2Pct      float64 // TP2 target %, e.g. 2.5
 	TP3Pct      float64 // TP3 target %, e.g. 5.0
-	ATRTP2Mult  float64 // ATR multiplier for TP2, e.g. 3.5
-	ATRTP3Mult  float64 // ATR multiplier for TP3, e.g. 6.0
+
 
 	// ── Funding Rate Filter ───────────────────────────
 	ShortFundingRateLimit float64 // skip SHORT if funding < this (e.g. -0.0001)
@@ -69,8 +68,6 @@ func Load() (*Config, error) {
 		TP1Pct:     getEnvFloat("TP1_PCT", 1.0),
 		TP2Pct:     getEnvFloat("TP2_PCT", 2.5),
 		TP3Pct:     getEnvFloat("TP3_PCT", 5.0),
-		ATRTP2Mult: getEnvFloat("ATR_TP2_MULT", 3.5),
-		ATRTP3Mult: getEnvFloat("ATR_TP3_MULT", 6.0),
 
 		// Funding rate filter
 		ShortFundingRateLimit: getEnvFloat("SHORT_FUNDING_RATE_LIMIT", -0.008),

@@ -127,6 +127,9 @@ func (tc *TradeClient) sign(timestamp, payload string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// ErrRateLimit is returned when Bybit responds with HTTP 429 Too Many Requests.
+var ErrRateLimit = fmt.Errorf("rate limited (HTTP 429)")
+
 func (tc *TradeClient) doPost(endpoint string, body map[string]interface{}) (json.RawMessage, error) {
 	<-tc.limiter
 
@@ -155,6 +158,12 @@ func (tc *TradeClient) doPost(endpoint string, body map[string]interface{}) (jso
 	}
 	defer resp.Body.Close()
 
+	// HTTP 429 — rate limited, signal caller to retry
+	if resp.StatusCode == http.StatusTooManyRequests {
+		io.ReadAll(resp.Body) // drain body
+		return nil, ErrRateLimit
+	}
+
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read body: %w", err)
@@ -177,6 +186,32 @@ func (tc *TradeClient) doPost(endpoint string, body map[string]interface{}) (jso
 	}
 
 	return result.Result, nil
+}
+
+// doPostWithRetry wraps doPost with exponential backoff retry.
+// Retries on network errors and HTTP 429 (rate limit). Max 3 attempts.
+// Backoff: 500ms → 1s → 2s.
+func (tc *TradeClient) doPostWithRetry(endpoint string, body map[string]interface{}) (json.RawMessage, error) {
+	backoff := [3]time.Duration{500 * time.Millisecond, 1 * time.Second, 2 * time.Second}
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		raw, err := tc.doPost(endpoint, body)
+		if err == nil {
+			return raw, nil
+		}
+		lastErr = err
+		// Don't retry on deterministic API errors (retCode != 0)
+		// Only retry on rate limits, network failures, empty/corrupt responses
+		if err != ErrRateLimit &&
+			!strings.Contains(err.Error(), "request failed:") &&
+			!strings.Contains(err.Error(), "empty response body") {
+			return nil, err
+		}
+		log.Printf("[Trade] ⚠️ %s attempt %d/3 failed: %v — retrying in %v",
+			endpoint, attempt+1, err, backoff[attempt])
+		time.Sleep(backoff[attempt])
+	}
+	return nil, fmt.Errorf("%s after 3 attempts: %w", endpoint, lastErr)
 }
 
 func (tc *TradeClient) doAuthGet(endpoint string, params map[string]string) (json.RawMessage, error) {
@@ -434,7 +469,7 @@ func (tc *TradeClient) PlaceOrder(req PlaceOrderReq) (*OrderResult, error) {
 		body["reduceOnly"] = true
 	}
 
-	raw, err := tc.doPost("/v5/order/create", body)
+	raw, err := tc.doPostWithRetry("/v5/order/create", body)
 	if err != nil {
 		return nil, fmt.Errorf("place order: %w", err)
 	}
@@ -455,7 +490,7 @@ func (tc *TradeClient) PlaceOrder(req PlaceOrderReq) (*OrderResult, error) {
 
 // CancelOrder cancels an open order
 func (tc *TradeClient) CancelOrder(symbol, orderID string) error {
-	_, err := tc.doPost("/v5/order/cancel", map[string]interface{}{
+	_, err := tc.doPostWithRetry("/v5/order/cancel", map[string]interface{}{
 		"category": "linear",
 		"symbol":   symbol,
 		"orderId":  orderID,
@@ -630,26 +665,18 @@ func (tc *TradeClient) SetTradingStop(symbol string, positionIdx int, stopLoss f
 		"positionIdx": positionIdx,
 	}
 
-	var lastErr error
-	for attempt := 1; attempt <= 3; attempt++ {
-		_, err = tc.doPost("/v5/position/trading-stop", payload)
-		if err == nil {
-			log.Printf("[Trade] 🛡️ Stop loss set: %s posIdx=%d SL=%s", symbol, positionIdx, slStr)
-			return nil
-		}
-		lastErr = err
-		log.Printf("[Trade] ⚠️ SetTradingStop attempt %d/3 failed for %s: %v", attempt, symbol, err)
-		if attempt < 3 {
-			time.Sleep(time.Duration(attempt) * 2 * time.Second)
-		}
+	_, err = tc.doPostWithRetry("/v5/position/trading-stop", payload)
+	if err != nil {
+		return fmt.Errorf("set trading stop: %w", err)
 	}
 
-	return fmt.Errorf("set trading stop after 3 attempts: %w", lastErr)
+	log.Printf("[Trade] 🛡️ Stop loss set: %s posIdx=%d SL=%s", symbol, positionIdx, slStr)
+	return nil
 }
 
 // CancelAllOrders cancels all open orders for a symbol
 func (tc *TradeClient) CancelAllOrders(symbol string) error {
-	_, err := tc.doPost("/v5/order/cancel-all", map[string]interface{}{
+	_, err := tc.doPostWithRetry("/v5/order/cancel-all", map[string]interface{}{
 		"category": "linear",
 		"symbol":   symbol,
 	})

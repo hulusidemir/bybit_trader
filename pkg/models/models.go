@@ -7,13 +7,15 @@ import "time"
 type PatternName string
 
 const (
-	// Momentum-focused patterns (v2)
-	PatternMomentumLong    PatternName = "Momentum Long"
-	PatternMomentumShort   PatternName = "Momentum Short"
-	PatternBreakoutLong    PatternName = "Breakout Long"
-	PatternBreakoutShort   PatternName = "Breakout Short"
-	PatternConfluenceLong  PatternName = "Confluence Long"
-	PatternConfluenceShort PatternName = "Confluence Short"
+	// OrderFlow patterns (v3 — manipulation detection)
+	PatternSpoofTrapLong    PatternName = "Spoof Trap Long"
+	PatternSpoofTrapShort   PatternName = "Spoof Trap Short"
+	PatternTopAbsorption    PatternName = "Top Absorption"
+	PatternBottomAbsorption PatternName = "Bottom Absorption"
+	PatternLongSqueeze      PatternName = "Long Squeeze"
+	PatternShortSqueeze     PatternName = "Short Squeeze"
+	PatternDeltaDivLong     PatternName = "Delta Divergence Long"
+	PatternDeltaDivShort    PatternName = "Delta Divergence Short"
 
 	// Legacy names kept for DB compat
 	PatternStealthAccumulation  PatternName = "Stealth Accumulation"
@@ -172,18 +174,6 @@ type TimeframeMetrics struct {
 	Volume24h        float64
 	NextFundingTime  int64
 	FundingInterval  int
-	ATR              float64 // Average True Range (14-period)
-	PriceTrend       Trend   // price direction from recent candles
-	PriceRangePos    float64 // 0-100: position within recent high-low range (0=bottom, 100=top)
-
-	// EMA-based momentum detection
-	EMAFast   float64 // EMA 9 value
-	EMASlow   float64 // EMA 21 value
-	EMABull   bool    // true if EMA9 > EMA21 (bullish structure)
-
-	// Volume profile
-	VolProfile float64 // current volume / average volume (>1 = above avg)
-
 	// Separate futures vs spot orderbook bias
 	FuturesOBBias OrderbookBias
 	SpotOBBias    OrderbookBias
@@ -257,10 +247,11 @@ type Trade struct {
 	AvgEntryPrice  float64 // Weighted average entry (updated after DCA)
 	TotalQty       float64 // Total position qty (initial + DCA)
 	RemainingQty   float64 // Remaining qty after partial TP closes
-	DCACount       int     // Number of DCA entries done
-	MarginUsed     float64 // Total margin deployed (USD)
-	MarginPerEntry float64 // Margin for each individual entry/DCA ($)
-	LastDCAPrice   float64 // Price of the most recent DCA entry
+	DCACount       int       // Number of DCA entries done
+	MarginUsed     float64   // Total margin deployed (USD)
+	MarginPerEntry float64   // Margin for each individual entry/DCA ($)
+	LastDCAPrice   float64   // Price of the most recent DCA entry
+	LastDCATime    time.Time // Timestamp of the most recent DCA entry (cooldown guard)
 
 	// TP limit order tracking
 	TP1OrderID     string  // Bybit order ID for TP1 limit order
@@ -301,4 +292,23 @@ type PatternStat struct {
 	Losses     int
 	WinRate    float64
 	AvgPnL     float64
+}
+
+// ── OrderFlow Event Types ───────────────────────────────────
+
+type SpoofingEvent struct {
+	Timestamp     int64
+	Symbol        string
+	Side          string  // "bid" or "ask"
+	WallPrice     float64
+	WallSize      float64
+	DisappearedAt int64
+}
+
+type AbsorptionEvent struct {
+	Timestamp  int64
+	Symbol     string
+	Direction  string  // "up" (buying absorbed) or "down" (selling absorbed)
+	CVDDelta   float64
+	PriceDelta float64
 }

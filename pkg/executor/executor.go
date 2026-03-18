@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"bybit_trader/pkg/exchange/bybit"
 	"bybit_trader/pkg/models"
@@ -31,6 +32,7 @@ type Executor struct {
 	tp1Pct           float64            // TP1 %
 	tp2Pct           float64            // TP2 %
 	tp3Pct           float64            // TP3 %
+	dcaCooldown      time.Duration      // minimum time between DCA entries
 }
 
 func New(
@@ -54,6 +56,7 @@ func New(
 		tp1Pct:           tp1Pct,
 		tp2Pct:           tp2Pct,
 		tp3Pct:           tp3Pct,
+		dcaCooldown:      60 * time.Second,
 	}
 }
 
@@ -374,9 +377,16 @@ func (e *Executor) CalcDCAPrice(avgEntry float64, direction models.SignalDirecti
 	return avgEntry * (1 + pct/100)
 }
 
-// ShouldDCA checks if current price has crossed the DCA threshold
+// ShouldDCA checks if current price has crossed the DCA threshold.
+// Enforces a cooldown period between DCA entries to prevent death spiral
+// during flash crashes (rapid-fire position updates within seconds).
 func (e *Executor) ShouldDCA(trade *models.Trade, currentPrice float64) bool {
 	if trade.DCACount >= e.maxDCA {
+		return false
+	}
+
+	// Cooldown guard: prevent rapid-fire DCA during flash crashes
+	if trade.DCACount > 0 && !trade.LastDCATime.IsZero() && time.Since(trade.LastDCATime) < e.dcaCooldown {
 		return false
 	}
 

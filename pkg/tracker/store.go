@@ -57,6 +57,7 @@ func createTables(db *sql.DB) error {
 			margin_used REAL DEFAULT 0,
 			margin_per_entry REAL DEFAULT 0,
 			last_dca_price REAL DEFAULT 0,
+			last_dca_time DATETIME,
 			tp1_order_id TEXT DEFAULT '',
 			tp2_order_id TEXT DEFAULT '',
 			tp3_order_id TEXT DEFAULT '',
@@ -141,6 +142,11 @@ func ensureTradeColumns(db *sql.DB) error {
 	}
 	if !existing["last_dca_price"] {
 		if _, err := db.Exec(`ALTER TABLE trades ADD COLUMN last_dca_price REAL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	if !existing["last_dca_time"] {
+		if _, err := db.Exec(`ALTER TABLE trades ADD COLUMN last_dca_time DATETIME`); err != nil {
 			return err
 		}
 	}
@@ -263,6 +269,7 @@ func (s *Store) queryTrades(where string) ([]*models.Trade, error) {
 			COALESCE(total_qty, 0), COALESCE(remaining_qty, 0),
 			COALESCE(dca_count, 0), COALESCE(margin_used, 0),
 			COALESCE(margin_per_entry, margin_used), COALESCE(last_dca_price, 0),
+			last_dca_time,
 			COALESCE(tp1_order_id, ''), COALESCE(tp2_order_id, ''), COALESCE(tp3_order_id, ''),
 			COALESCE(tp_phase, ''),
 			opened_at, closed_at, moved_to_tp1_at, moved_to_tp2_at
@@ -278,6 +285,7 @@ func (s *Store) queryTrades(where string) ([]*models.Trade, error) {
 		var closedAt sql.NullTime
 		var movedTP1At sql.NullTime
 		var movedTP2At sql.NullTime
+		var lastDCATime sql.NullTime
 		var dir, pattern, grade, status string
 
 		var tpPhase string
@@ -288,6 +296,7 @@ func (s *Store) queryTrades(where string) ([]*models.Trade, error) {
 			&t.OrderID, &t.AvgEntryPrice,
 			&t.TotalQty, &t.RemainingQty,
 			&t.DCACount, &t.MarginUsed, &t.MarginPerEntry, &t.LastDCAPrice,
+			&lastDCATime,
 			&t.TP1OrderID, &t.TP2OrderID, &t.TP3OrderID,
 			&tpPhase,
 			&t.OpenedAt, &closedAt, &movedTP1At, &movedTP2At,
@@ -309,6 +318,9 @@ func (s *Store) queryTrades(where string) ([]*models.Trade, error) {
 		}
 		if movedTP2At.Valid {
 			t.MovedToTP2At = &movedTP2At.Time
+		}
+		if lastDCATime.Valid {
+			t.LastDCATime = lastDCATime.Time
 		}
 
 		trades = append(trades, t)
@@ -447,14 +459,17 @@ func (s *Store) CancelTrade(id int64) error {
 // UpdateDCA updates trade after a DCA entry
 func (s *Store) UpdateDCA(id int64, newAvgEntry, newTotalQty, newRemainingQty float64,
 	dcaCount int, marginUsed, lastDCAPrice, tp1, tp2, tp3 float64) error {
+	now := time.Now()
 	_, err := s.db.Exec(`
 		UPDATE trades SET
 			avg_entry_price = ?, total_qty = ?, remaining_qty = ?,
 			dca_count = ?, margin_used = ?, last_dca_price = ?,
+			last_dca_time = ?,
 			tp1 = ?, tp2 = ?, tp3 = ?
 		WHERE id = ?
 	`, newAvgEntry, newTotalQty, newRemainingQty,
 		dcaCount, marginUsed, lastDCAPrice,
+		now,
 		tp1, tp2, tp3, id)
 	return err
 }

@@ -1,13 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -28,13 +28,13 @@ import (
 	"bybit_trader/pkg/tracker"
 )
 
-const version = "1.0.0"
+const version = "2.0.0"
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Println("═══════════════════════════════════════")
 	log.Println("  Bybit Trader v" + version)
-	log.Println("  Perpetual Futures Signal Scanner")
+	log.Println("  Event-Driven HFT Architecture")
 	log.Println("═══════════════════════════════════════")
 
 	// ── Load Config ────────────────────────────────────
@@ -42,14 +42,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Config error: %v", err)
 	}
-	log.Printf("Config loaded: scan=%ds, minVol=$%.0f, port=%d",
+	log.Printf("Config loaded: screener=%ds, minVol=$%.0f, port=%d",
 		cfg.ScanIntervalSec, cfg.MinVolume24H, cfg.DashboardPort)
+
+	// ── Root Context ───────────────────────────────────
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// ── Initialize Clients ─────────────────────────────
 	bybitClient := bybit.NewClient()
-	binanceClient := binance.NewClient()
-	okxClient := okx.NewClient()
-	coinbaseClient := coinbase.NewClient()
 	tgBot := telegram.NewBot(cfg.TelegramBotToken, cfg.TelegramChatID)
 	defer func() {
 		if r := recover(); r != nil {
@@ -60,19 +61,26 @@ func main() {
 		}
 	}()
 
-	// Build aggregated data providers (Bybit + Binance + OKX + Coinbase + Kraken + Bitget)
-	krakenClient := kraken.NewClient()
-	bitgetClient := bitget.NewClient()
+	// ── Build Native WebSocket Data Providers ──────────
+	// All 6 exchanges use native WebSocket streaming.
+	// Zero REST polling for market data.
 	providers := []exchange.DataProvider{
-		bybit.NewProvider(bybitClient),
-		binance.NewProvider(binanceClient),
-		okxClient,      // OKX client implements DataProvider directly
-		coinbaseClient, // Coinbase: spot orderbook depth
-		krakenClient,   // Kraken: spot orderbook depth
-		bitgetClient,   // Bitget: futures OI + futures/spot orderbook
+		bybit.NewWSProvider(),
+		binance.NewWSProvider(),
+		okx.NewWSProvider(),
+		coinbase.NewWSProvider(),
+		kraken.NewWSProvider(),
+		bitget.NewWSProvider(),
 	}
-	log.Printf("Data providers: %d exchanges (Bybit + Binance + OKX + Coinbase + Kraken + Bitget)", len(providers))
-	engine := analysis.NewEngine(bybitClient, providers)
+	log.Printf("Data providers: %d exchanges (all native WebSocket)", len(providers))
+
+	// ── Core Event Channels ────────────────────────────
+	// HotListCh: Screener → Subscription Manager (coin discovery)
+	// MarketEventCh: All Providers → Analysis Engine (market data)
+	// SignalCh: Analysis Engine → Signal Processor (trade signals)
+	hotListCh := make(chan []string, 1)
+	marketEventCh := make(chan models.MarketEvent, 8192)
+	signalCh := make(chan *models.Signal, 64)
 
 	// ── Initialize Trade Store ─────────────────────────
 	store, err := tracker.NewStore("trades.db")
@@ -83,279 +91,437 @@ func main() {
 
 	// ── Initialize Trade Client & Executor ─────────────
 	var exec *executor.Executor
-
+	var execEventCh <-chan models.ExecutionEvent
 	if cfg.TradingEnabled {
 		tradeClient := bybit.NewTradeClient(cfg.BybitAPIKey, cfg.BybitAPISecret, cfg.BybitTestnet)
-
-		// Load instrument precision data
 		if err := tradeClient.LoadInstruments(); err != nil {
 			log.Fatalf("Failed to load instrument data: %v", err)
 		}
-
-		// Check wallet balance
 		balance, err := tradeClient.GetWalletBalance()
 		if err != nil {
 			log.Printf("Warning: could not check wallet balance: %v", err)
 		} else {
 			log.Printf("Wallet balance: $%.2f USDT", balance)
 		}
-
 		exec = executor.New(tradeClient, store, cfg.Leverage, cfg.MarginPerTrade, cfg.MaxDCACount, cfg.DCAThresholdPct,
 			cfg.CoinDCAOverrides, cfg.TP1Pct, cfg.TP2Pct, cfg.TP3Pct)
 		log.Printf("🔥 LIVE TRADING ENABLED: %dx leverage, $%.0f margin/trade, DCA %.0f%% (max %d)",
 			cfg.Leverage, cfg.MarginPerTrade, cfg.DCAThresholdPct, cfg.MaxDCACount)
+
+		// Launch Private WebSocket for real-time order/position updates
+		privateWS := bybit.NewPrivateWSClient(cfg.BybitAPIKey, cfg.BybitAPISecret, cfg.BybitTestnet)
+		execEventCh = privateWS.Start(ctx)
+		log.Println("🔌 Private WebSocket started (order + position streams)")
 	} else {
 		log.Println("📊 Signal-only mode (TRADING_ENABLED=false)")
 	}
 
-	// ── Start Price Monitor ────────────────────────────
-	monitor := tracker.NewMonitor(store, bybitClient, tgBot, exec, cfg.OrderTimeoutSec)
+	// ── Start Event-Driven Monitor ─────────────────────
+	// Fan-out: execEventCh → monitor + dashboard WS broadcaster
+	var monitorCh <-chan models.ExecutionEvent
+	var dashExecCh <-chan models.ExecutionEvent
+
+	if execEventCh != nil {
+		mCh := make(chan models.ExecutionEvent, 256)
+		dCh := make(chan models.ExecutionEvent, 256)
+		monitorCh = mCh
+		dashExecCh = dCh
+		go fanOutExecEvents(ctx, execEventCh, mCh, dCh)
+	}
+
+	monitor := tracker.NewMonitor(store, tgBot, exec, cfg.OrderTimeoutSec, monitorCh)
 	monitor.Start()
 
 	// ── Start Dashboard ────────────────────────────────
-	dash := dashboard.NewServer(store, cfg.DashboardPort)
+	dash := dashboard.NewServer(store, cfg.DashboardPort, dashExecCh)
 	dash.Start()
 
-	// ── Initial Coin Fetch ─────────────────────────────
+	// ── Fetch Instruments (one-time REST) ──────────────
 	coins, err := bybitClient.FetchInstruments()
 	if err != nil {
 		log.Fatalf("Failed to fetch instruments: %v", err)
 	}
 	log.Printf("Fetched %d USDT perpetual instruments", len(coins))
 
-	// Build blacklist slice for startup message
+	// ── Startup Notification ───────────────────────────
 	blacklistSlice := make([]string, 0, len(cfg.BlacklistedCoins))
 	for sym := range cfg.BlacklistedCoins {
 		blacklistSlice = append(blacklistSlice, sym)
 	}
-
-	// Send startup message
 	tgBot.SendStartup(telegram.StartupInfo{
-		CoinCount:       len(coins),
-		Version:         version,
-		TradingEnabled:  cfg.TradingEnabled,
-		Testnet:         cfg.BybitTestnet,
-		Leverage:        cfg.Leverage,
-		MarginPerTrade:  cfg.MarginPerTrade,
-		MaxDCACount:     cfg.MaxDCACount,
-		DCAThresholdPct: cfg.DCAThresholdPct,
-		TP1Pct:          cfg.TP1Pct,
-		TP2Pct:          cfg.TP2Pct,
-		TP3Pct:          cfg.TP3Pct,
+		CoinCount:        len(coins),
+		Version:          version,
+		TradingEnabled:   cfg.TradingEnabled,
+		Testnet:          cfg.BybitTestnet,
+		Leverage:         cfg.Leverage,
+		MarginPerTrade:   cfg.MarginPerTrade,
+		MaxDCACount:      cfg.MaxDCACount,
+		DCAThresholdPct:  cfg.DCAThresholdPct,
+		TP1Pct:           cfg.TP1Pct,
+		TP2Pct:           cfg.TP2Pct,
+		TP3Pct:           cfg.TP3Pct,
 		BlacklistedCoins: blacklistSlice,
 		MarginOverrides:  cfg.CoinMarginOverrides,
 		DCAOverrides:     cfg.CoinDCAOverrides,
 	})
 
-	// ── Signal Tracking ────────────────────────────────
-	// Keep track of recently sent signals to avoid duplicates
-	recentSignals := make(map[string]time.Time)
-	var recentMu sync.Mutex
+	// ═══════════════════════════════════════════════════════
+	//  EVENT-DRIVEN GOROUTINE ORCHESTRA
+	//
+	//  ┌───────────┐     HotListCh     ┌──────────────┐
+	//  │  Screener  │ ────────────────▶ │  Subscription │
+	//  │  (REST 5m) │                   │   Manager     │
+	//  └───────────┘                   └──────┬───────┘
+	//                                         │ Subscribe()
+	//                              ┌──────────┼──────────┐
+	//                              ▼          ▼          ▼
+	//                         ┌────────┐ ┌────────┐ ┌────────┐
+	//                         │ Bybit  │ │Binance │ │  OKX   │ ...
+	//                         │Provider│ │Provider│ │Provider│
+	//                         └───┬────┘ └───┬────┘ └───┬────┘
+	//                             │          │          │
+	//                             ▼          ▼          ▼
+	//                         ┌──────── Fan-In ────────────┐
+	//                         │      MarketEventCh         │
+	//                         └─────────────┬──────────────┘
+	//                                       ▼
+	//                              ┌─────────────────┐
+	//                              │  Analysis Engine │
+	//                              │  (EventEngine)   │
+	//                              └────────┬────────┘
+	//                                       │ SignalCh
+	//                                       ▼
+	//                              ┌─────────────────┐
+	//                              │ Signal Processor │
+	//                              │ (Dedup+TG+Exec) │
+	//                              └─────────────────┘
+	// ═══════════════════════════════════════════════════════
+
+	// 1. Fan-In: Each provider's WebSocket stream → single MarketEventCh
+	for _, p := range providers {
+		go fanInEvents(ctx, p, marketEventCh)
+	}
+	log.Printf("Fan-in started: %d providers → MarketEventCh", len(providers))
+
+	// 2. Screener: REST every ScanInterval → HotListCh (ONLY remaining REST)
+	go screener(ctx, bybitClient, cfg, coins, hotListCh)
+
+	// 3. Subscription Manager: HotListCh → Subscribe() on all providers
+	go subscriptionManager(ctx, providers, hotListCh)
+
+	// 4. Analysis Engine: MarketEventCh → SignalCh
+	tpCfg := signals.TPConfig{
+		TP1Pct:                cfg.TP1Pct,
+		TP2Pct:                cfg.TP2Pct,
+		TP3Pct:                cfg.TP3Pct,
+		DCAThresholdPct:       cfg.DCAThresholdPct,
+		CoinDCAOverrides:      cfg.CoinDCAOverrides,
+		ShortFundingRateLimit: cfg.ShortFundingRateLimit,
+	}
+	engine := analysis.NewEventEngine()
+	go analysisLoop(ctx, engine, tpCfg, marketEventCh, signalCh)
+
+	// 5. Signal Processor: SignalCh → Telegram + Trade Execution
+	go signalProcessor(ctx, signalCh, tgBot, store, exec, cfg)
+
+	log.Println("═══════════════════════════════════════")
+	log.Println("  All goroutines launched. Listening...")
+	log.Println("═══════════════════════════════════════")
 
 	// ── Graceful Shutdown ──────────────────────────────
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	// ── Main Scan Loop ─────────────────────────────────
-	scanTicker := time.NewTicker(time.Duration(cfg.ScanIntervalSec) * time.Second)
-	defer scanTicker.Stop()
+	sig := <-quit
+	reason := fmt.Sprintf("signal: %s", sig.String())
+	log.Printf("Shutting down gracefully: %s", reason)
+	cancel() // cancels ctx → all goroutines wind down
+	monitor.Stop()
+	tgBot.SendShutdown(reason)
+}
 
-	// Do first scan immediately
-	runScan(bybitClient, engine, tgBot, store, cfg, coins, recentSignals, &recentMu, exec)
+// ════════════════════════════════════════════════════════════
+//  GOROUTINE 1: Fan-In (per provider)
+// ════════════════════════════════════════════════════════════
+
+// fanInEvents drains a single provider's event stream into the shared channel.
+// Non-blocking send: drops events if MarketEventCh is full.
+// HFT rule: never block the WebSocket reader goroutine.
+func fanInEvents(ctx context.Context, p exchange.DataProvider, out chan<- models.MarketEvent) {
+	ch := p.StreamEvents(ctx)
+	name := p.Name()
+	log.Printf("[FanIn] %s: stream connected", name)
 
 	for {
 		select {
-		case sig := <-quit:
-			reason := fmt.Sprintf("signal: %s", sig.String())
-			log.Printf("Shutting down gracefully: %s", reason)
-			monitor.Stop()
-			tgBot.SendShutdown(reason)
+		case <-ctx.Done():
+			log.Printf("[FanIn] %s: shutting down", name)
 			return
-		case <-scanTicker.C:
-			runScan(bybitClient, engine, tgBot, store, cfg, coins, recentSignals, &recentMu, exec)
+		case evt, ok := <-ch:
+			if !ok {
+				log.Printf("[FanIn] %s: stream closed", name)
+				return
+			}
+			// Non-blocking send: HFT hot path — never block the producer
+			select {
+			case out <- evt:
+			default:
+				// MarketEventCh full — drop stale event (acceptable in HFT)
+			}
 		}
 	}
 }
 
-func runScan(
-	bybitClient *bybit.Client,
-	engine *analysis.Engine,
+// ════════════════════════════════════════════════════════════
+//  GOROUTINE 2: Screener (REST — only remaining REST call)
+// ════════════════════════════════════════════════════════════
+
+// screener discovers high-volume coins via Bybit REST API on a fixed interval.
+// Pushes the ranked symbol list into HotListCh for the subscription manager.
+func screener(ctx context.Context, client *bybit.Client, cfg *config.Config, coins []models.Coin, hotListCh chan []string) {
+	discover := func() {
+		tickers, err := client.FetchTickers()
+		if err != nil {
+			log.Printf("[Screener] Error fetching tickers: %v", err)
+			return
+		}
+
+		type ranked struct {
+			Symbol   string
+			Turnover float64
+		}
+		var candidates []ranked
+		for _, coin := range coins {
+			t, ok := tickers[coin.Symbol]
+			if !ok {
+				continue
+			}
+			if t.Turnover24h >= cfg.MinVolume24H && !cfg.IsBlacklisted(coin.Symbol) {
+				candidates = append(candidates, ranked{coin.Symbol, t.Turnover24h})
+			}
+		}
+
+		sort.Slice(candidates, func(i, j int) bool {
+			return candidates[i].Turnover > candidates[j].Turnover
+		})
+
+		symbols := make([]string, len(candidates))
+		for i, c := range candidates {
+			symbols[i] = c.Symbol
+		}
+
+		log.Printf("[Screener] Hot list updated: %d symbols (min vol $%.0f)", len(symbols), cfg.MinVolume24H)
+
+		// Non-blocking push: replace stale list if channel is full
+		select {
+		case hotListCh <- symbols:
+		default:
+			select {
+			case <-hotListCh:
+			default:
+			}
+			hotListCh <- symbols
+		}
+	}
+
+	// Initial discovery immediately
+	discover()
+
+	ticker := time.NewTicker(time.Duration(cfg.ScanIntervalSec) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("[Screener] Shutting down")
+			return
+		case <-ticker.C:
+			discover()
+		}
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+//  GOROUTINE 3: Subscription Manager
+// ════════════════════════════════════════════════════════════
+
+// subscriptionManager listens for hot list updates and re-subscribes
+// all data providers to the new symbol set. Handles the dynamic
+// symbol rotation that is core to the screener → stream pipeline.
+func subscriptionManager(ctx context.Context, providers []exchange.DataProvider, hotListCh <-chan []string) {
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("[SubMgr] Shutting down")
+			return
+		case symbols := <-hotListCh:
+			log.Printf("[SubMgr] Updating subscriptions: %d symbols across %d providers",
+				len(symbols), len(providers))
+
+			var wg sync.WaitGroup
+			for _, p := range providers {
+				wg.Add(1)
+				go func(prov exchange.DataProvider) {
+					defer wg.Done()
+					if err := prov.Subscribe(ctx, symbols); err != nil {
+						log.Printf("[SubMgr] %s subscribe error: %v", prov.Name(), err)
+					} else {
+						log.Printf("[SubMgr] %s subscribed to %d symbols", prov.Name(), len(symbols))
+					}
+				}(p)
+			}
+			wg.Wait()
+			log.Printf("[SubMgr] All providers subscribed")
+		}
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+//  GOROUTINE 4: Analysis Loop
+// ════════════════════════════════════════════════════════════
+
+// analysisLoop is the core event processor. Every MarketEvent flows through
+// here. The EventEngine updates in-memory state and evaluates signal
+// conditions on each event — sub-millisecond latency target.
+func analysisLoop(ctx context.Context, engine *analysis.EventEngine, tpCfg signals.TPConfig, events <-chan models.MarketEvent, signalCh chan<- *models.Signal) {
+	var evtCount int64
+	logTicker := time.NewTicker(30 * time.Second)
+	defer logTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("[Analysis] Shutting down (processed %d events)", evtCount)
+			return
+		case <-logTicker.C:
+			log.Printf("[Analysis] Events processed: %d", evtCount)
+		case evt := <-events:
+			evtCount++
+
+			mtfResults := engine.ProcessEvent(evt)
+			if len(mtfResults) == 0 {
+				continue
+			}
+
+			// Signal generation (quality gates, TP/SL calc) runs here
+			// to avoid import cycle between analysis ↔ signals packages
+			sigs := signals.GenerateSignals(mtfResults, tpCfg)
+			for _, sig := range sigs {
+				select {
+				case signalCh <- sig:
+				default:
+					log.Printf("[Analysis] Signal channel full, dropping: %s %s %s",
+						sig.Direction, sig.Symbol, sig.Pattern)
+				}
+			}
+		}
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+//  GOROUTINE 5: Signal Processor
+// ════════════════════════════════════════════════════════════
+
+// signalProcessor handles signal deduplication, Telegram notification,
+// and trade execution. Consumes from SignalCh.
+func signalProcessor(
+	ctx context.Context,
+	signalCh <-chan *models.Signal,
 	tgBot *telegram.Bot,
 	store *tracker.Store,
-	cfg *config.Config,
-	coins []models.Coin,
-	recentSignals map[string]time.Time,
-	recentMu *sync.Mutex,
 	exec *executor.Executor,
+	cfg *config.Config,
 ) {
-	start := time.Now()
-	log.Printf("━━━ Scan started (%d coins) ━━━", len(coins))
+	recentSignals := make(map[string]time.Time)
 
-	// Fetch current tickers for volume filter
-	tickers, err := bybitClient.FetchTickers()
-	if err != nil {
-		log.Printf("Error fetching tickers: %v", err)
-		return
-	}
+	cleanupTicker := time.NewTicker(5 * time.Minute)
+	defer cleanupTicker.Stop()
 
-	// Filter coins by volume
-	var filtered []*models.Coin
-	for i := range coins {
-		ticker, ok := tickers[coins[i].Symbol]
-		if !ok {
-			continue
-		}
-		coins[i].LastPrice = ticker.LastPrice
-		coins[i].Turnover24h = ticker.Turnover24h
-		coins[i].Volume24h = ticker.Volume24h
-		coins[i].FundingRate = ticker.FundingRate
-		coins[i].OpenInterest = ticker.OpenInterest
-		coins[i].NextFundingTime = ticker.NextFundingTime
-		coins[i].FundingInterval = ticker.FundingInterval
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("[Signals] Shutting down")
+			return
 
-		if ticker.Turnover24h >= cfg.MinVolume24H {
-			if cfg.IsBlacklisted(coins[i].Symbol) {
-				log.Printf("Skipping blacklisted coin: %s", coins[i].Symbol)
+		case <-cleanupTicker.C:
+			// Purge stale dedup entries
+			now := time.Now()
+			for k, t := range recentSignals {
+				if now.Sub(t) > 30*time.Minute {
+					delete(recentSignals, k)
+				}
+			}
+
+		case sig := <-signalCh:
+			// ── Dedup: symbol + direction ──────────────
+			key := sig.Symbol + string(sig.Direction)
+			if _, exists := recentSignals[key]; exists {
 				continue
 			}
-			coin := coins[i] // copy
-			filtered = append(filtered, &coin)
-		}
-	}
+			recentSignals[key] = time.Now()
 
-	// Sort by volume descending
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].Turnover24h > filtered[j].Turnover24h
-	})
-
-	log.Printf("Volume filter: %d/%d coins passed ($%.0f+ threshold)",
-		len(filtered), len(coins), cfg.MinVolume24H)
-
-	// Semaphore for concurrent analysis (limit to 3 parallel to respect API rate limits)
-	sem := make(chan struct{}, 3)
-	var wg sync.WaitGroup
-	var allSignals []*models.Signal
-	var signalMu sync.Mutex
-	totalToScan := len(filtered)
-	var scannedCount int32
-
-	if totalToScan == 0 {
-		log.Printf("[Scan] No coins passed volume filter in this cycle")
-	}
-
-	for i, coin := range filtered {
-		wg.Add(1)
-		sem <- struct{}{}
-		index := i + 1
-
-		go func(c *models.Coin, scanIndex int) {
-			defer wg.Done()
-			defer func() { <-sem }()
-
-			coinStart := time.Now()
-			signalCount := 0
-			log.Printf("[Scan] ▶ %s (%d/%d) analyzing...", c.Symbol, scanIndex, totalToScan)
-
-			defer func() {
-				completed := atomic.AddInt32(&scannedCount, 1)
-				log.Printf("[Scan] ✓ %s (%d/%d) done in %.1fs, signals=%d, progress=%d/%d",
-					c.Symbol, scanIndex, totalToScan, time.Since(coinStart).Seconds(), signalCount, completed, totalToScan)
-			}()
-
-			// Analyze
-			coinAnalysis := engine.AnalyzeCoin(c)
-			if coinAnalysis == nil {
-				return
+			// ── Telegram Notification ──────────────────
+			msg := signals.FormatTelegramMessage(sig)
+			if err := tgBot.SendMessage(msg); err != nil {
+				log.Printf("[Signals] Telegram error: %v", err)
+				continue
 			}
 
-			// Multi-timeframe pattern matching
-			mtfResults := analysis.AnalyzeMTF(coinAnalysis)
-			if len(mtfResults) == 0 {
-				return
+			// ── Trade Execution ────────────────────────
+			var orderID string
+			var entryPrice, qty float64
+			var execErr error
+
+			if exec != nil {
+				margin := cfg.MarginForCoin(sig.Symbol)
+				orderID, entryPrice, qty, execErr = exec.OpenPosition(sig, margin)
+				if execErr != nil {
+					log.Printf("[Signals] ⚠️ Trade execution failed for %s: %v", sig.Symbol, execErr)
+					tgBot.SendMessage("⚠️ *EMİR HATA* — " + sig.Symbol + "\n" + execErr.Error())
+					continue
+				}
+			} else {
+				entryPrice = (sig.EntryLow + sig.EntryHigh) / 2
 			}
 
-			// Generate signals
-			tpCfg := signals.TPConfig{
-				TP1Pct:                cfg.TP1Pct,
-				TP2Pct:                cfg.TP2Pct,
-				TP3Pct:                cfg.TP3Pct,
-				ATRTP2Mult:            cfg.ATRTP2Mult,
-				ATRTP3Mult:            cfg.ATRTP3Mult,
-				DCAThresholdPct:       cfg.DCAThresholdPct,
-				CoinDCAOverrides:      cfg.CoinDCAOverrides,
-				ShortFundingRateLimit: cfg.ShortFundingRateLimit,
-			}
-			sigs := signals.GenerateSignals(mtfResults, tpCfg)
-			if len(sigs) == 0 {
-				return
-			}
-			signalCount = len(sigs)
-
-			signalMu.Lock()
-			allSignals = append(allSignals, sigs...)
-			signalMu.Unlock()
-		}(coin, index)
-	}
-
-	wg.Wait()
-
-	// Process signals
-	newSignals := 0
-	recentMu.Lock()
-// Clean old entries (older than 30 minutes)
-		for k, t := range recentSignals {
-			if time.Since(t) > 30*time.Minute {
-			delete(recentSignals, k)
-		}
-	}
-
-	for _, sig := range allSignals {
-		// Dedup key: symbol + direction (same coin same direction = skip)
-		// Prevents multiple patterns triggering on the same setup
-		key := string(sig.Symbol) + string(sig.Direction)
-		if _, exists := recentSignals[key]; exists {
-			continue
-		}
-		recentSignals[key] = time.Now()
-
-		// Send to Telegram
-		msg := signals.FormatTelegramMessage(sig)
-		if err := tgBot.SendMessage(msg); err != nil {
-			log.Printf("Error sending signal: %v", err)
-			continue
-		}
-
-		// Execute trade on Bybit (if trading enabled)
-		var orderID string
-		var entryPrice, qty float64
-
-		if exec != nil {
-			margin := cfg.MarginForCoin(sig.Symbol)
-			orderID, entryPrice, qty, err = exec.OpenPosition(sig, margin)
+			// ── Persist Trade ──────────────────────────
+			trade, err := store.CreateTrade(sig, orderID, entryPrice, qty, cfg.MarginForCoin(sig.Symbol))
 			if err != nil {
-				log.Printf("⚠️ Trade execution failed for %s: %v", sig.Symbol, err)
-				tgBot.SendMessage("⚠️ *EMİR HATA* — " + sig.Symbol + "\n" + err.Error())
+				log.Printf("[Signals] Error creating trade: %v", err)
 				continue
 			}
-		} else {
-			// Signal-only mode: use midpoint as entry
-			entryPrice = (sig.EntryLow + sig.EntryHigh) / 2
-		}
 
-		// Record trade
-		trade, err := store.CreateTrade(sig, orderID, entryPrice, qty, cfg.MarginForCoin(sig.Symbol))
-		if err != nil {
-			log.Printf("Error creating trade: %v", err)
-			continue
+			log.Printf("🔥 Signal: %s %s %s (Score: %d, Grade: %s, Trade #%d, OrderID: %s)",
+				sig.Direction, sig.Symbol, sig.Pattern, sig.Confidence, sig.Grade, trade.ID, orderID)
 		}
-
-		log.Printf("🔥 Signal: %s %s %s (Score: %d, Grade: %s, Trade #%d, OrderID: %s)",
-			sig.Direction, sig.Symbol, sig.Pattern, sig.Confidence, sig.Grade, trade.ID, orderID)
-		newSignals++
 	}
-	recentMu.Unlock()
+}
 
-	elapsed := time.Since(start)
-	log.Printf("━━━ Scan complete: %d signals, %d new (%.1fs) ━━━",
-		len(allSignals), newSignals, elapsed.Seconds())
+// ════════════════════════════════════════════════════════════
+//  Fan-Out: ExecutionEvent → Monitor + Dashboard
+// ════════════════════════════════════════════════════════════
+
+// fanOutExecEvents duplicates each ExecutionEvent to both the monitor
+// and dashboard channels. Non-blocking sends: never block the private WS.
+func fanOutExecEvents(ctx context.Context, src <-chan models.ExecutionEvent, monCh, dashCh chan<- models.ExecutionEvent) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case evt, ok := <-src:
+			if !ok {
+				return
+			}
+			// Non-blocking send to monitor (critical path — monitor handles trade logic)
+			select {
+			case monCh <- evt:
+			default:
+			}
+			// Non-blocking send to dashboard (best-effort — only for UI updates)
+			select {
+			case dashCh <- evt:
+			default:
+			}
+		}
+	}
 }
