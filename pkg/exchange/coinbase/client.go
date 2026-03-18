@@ -182,8 +182,13 @@ func (c *Client) FetchSpotTakerVolume(_ string, _ string, _ int) ([]models.Taker
 	return nil, nil
 }
 
-// FetchOrderbook returns spot orderbook depth from Coinbase.
-func (c *Client) FetchOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error) {
+// FetchFuturesOrderbook returns nil — Coinbase has no futures.
+func (c *Client) FetchFuturesOrderbook(_ string, _ int) (*models.OrderbookSnapshot, error) {
+	return nil, nil
+}
+
+// FetchSpotOrderbook returns spot orderbook depth from Coinbase.
+func (c *Client) FetchSpotOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error) {
 	productID := c.resolveProductID(bybitSymbol)
 	if productID == "" {
 		return nil, nil

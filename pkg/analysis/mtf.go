@@ -10,14 +10,15 @@ type MTFResult struct {
 	Direction       models.SignalDirection
 	Pattern         models.PatternName
 	Description     string
-	ConfluenceScore int                          // 0-100
-	AlignedTFs      int                          // how many timeframes agree
-	TotalTFs        int                          // always 4
-	TFDetails       map[string]bool              // tf -> aligned
-	PrimaryTF       string                       // the timeframe that triggered the signal
+	ConfluenceScore int                              // 0-100
+	AlignedTFs      int                              // how many timeframes agree
+	TotalTFs        int                              // always 4
+	TFDetails       map[string]bool                  // tf -> aligned
+	PrimaryTF       string                           // the timeframe that triggered the signal
 	Metrics         map[string]*models.TimeframeMetrics
-	HasOBSupport    bool                         // orderbook confirms direction
-	HasCVDConfirm   bool                         // both perp+spot CVD confirm
+	HasOBSupport    bool                             // orderbook confirms direction
+	HasCVDConfirm   bool                             // both perp+spot CVD confirm
+	HasEMAConfirm   bool                             // EMA structure confirms
 }
 
 // AnalyzeMTF performs multi-timeframe confluence analysis
@@ -51,31 +52,39 @@ func AnalyzeMTF(analysis *models.CoinAnalysis) []MTFResult {
 		}
 	}
 
-	// Score and rank
-	for pattern, tfs := range patternTFs {
-		info := patternInfo[pattern]
+	// Also check for direction-level alignment (different patterns, same direction)
+	dirTFs := make(map[models.SignalDirection]map[string]bool)
+	dirBestPattern := make(map[models.SignalDirection]PatternMatch)
+	for tf, matches := range tfPatterns {
+		for _, m := range matches {
+			if _, ok := dirTFs[m.Direction]; !ok {
+				dirTFs[m.Direction] = make(map[string]bool)
+				dirBestPattern[m.Direction] = m
+			}
+			dirTFs[m.Direction][tf] = true
+		}
+	}
+
+	// Score and rank — use direction-level confluence (more flexible than exact pattern match)
+	for dir, tfs := range dirTFs {
+		info := dirBestPattern[dir]
 		aligned := len(tfs)
 
-		// ══════════════════════════════════════════════════
-		// STRICT: Minimum 2 timeframe alignment required
-		// Single-TF patterns are noise, not signals
-		// ══════════════════════════════════════════════════
+		// Minimum 2 timeframe alignment required
 		if aligned < 2 {
 			continue
 		}
 
-		// Check orderbook and CVD confirmation
-		hasOBSupport := checkOBSupport(analysis.Metrics, info.Direction)
-		hasCVDConfirm := checkCVDConfirmation(analysis.Metrics, info.Direction)
+		// Check confirmations
+		hasOBSupport := checkOBSupport(analysis.Metrics, dir)
+		hasCVDConfirm := checkCVDConfirmation(analysis.Metrics, dir)
+		hasEMAConfirm := checkEMAConfirmation(analysis.Metrics, dir)
 
-		// Confluence score calculation
-		score := calcConfluenceScore(aligned, tfs, analysis.Metrics, info.Direction, hasOBSupport, hasCVDConfirm)
+		// Confluence score
+		score := calcConfluenceScore(aligned, tfs, analysis.Metrics, dir, hasOBSupport, hasCVDConfirm, hasEMAConfirm)
 
-		// ══════════════════════════════════════════════════
-		// STRICT: Minimum score 75 — higher quality filter
-		// Only 75+ passes as A, 85+ as A+
-		// ══════════════════════════════════════════════════
-		if score < 75 {
+		// Minimum score 70
+		if score < 70 {
 			continue
 		}
 
@@ -90,8 +99,8 @@ func AnalyzeMTF(analysis *models.CoinAnalysis) []MTFResult {
 
 		results = append(results, MTFResult{
 			Symbol:          analysis.Symbol,
-			Direction:       info.Direction,
-			Pattern:         pattern,
+			Direction:       dir,
+			Pattern:         info.Pattern,
 			Description:     info.Description,
 			ConfluenceScore: score,
 			AlignedTFs:      aligned,
@@ -101,6 +110,7 @@ func AnalyzeMTF(analysis *models.CoinAnalysis) []MTFResult {
 			Metrics:         analysis.Metrics,
 			HasOBSupport:    hasOBSupport,
 			HasCVDConfirm:   hasCVDConfirm,
+			HasEMAConfirm:   hasEMAConfirm,
 		})
 	}
 
@@ -109,11 +119,9 @@ func AnalyzeMTF(analysis *models.CoinAnalysis) []MTFResult {
 
 func checkOBSupport(metrics map[string]*models.TimeframeMetrics, dir models.SignalDirection) bool {
 	for _, m := range metrics {
-		// Momentum LONG: bid wall = alıcılar güçlü, destek var
 		if dir == models.DirectionLong && m.OBBias >= models.OBBidWall {
 			return true
 		}
-		// Momentum SHORT: ask wall = satıcılar güçlü, direnç var
 		if dir == models.DirectionShort && m.OBBias <= models.OBAskWall {
 			return true
 		}
@@ -124,7 +132,7 @@ func checkOBSupport(metrics map[string]*models.TimeframeMetrics, dir models.Sign
 func checkCVDConfirmation(metrics map[string]*models.TimeframeMetrics, dir models.SignalDirection) bool {
 	perpConfirm := false
 	spotConfirm := false
-	noCVDData := true // track if any CVD data exists
+	noCVDData := true
 
 	for _, m := range metrics {
 		if m.PerpCVD != 0 || m.SpotCVD != 0 {
@@ -132,32 +140,52 @@ func checkCVDConfirmation(metrics map[string]*models.TimeframeMetrics, dir model
 		}
 
 		if dir == models.DirectionLong {
-			// Momentum LONG: perp alım baskısı olmalı
 			if m.PerpCVDTrend >= models.TrendUp {
 				perpConfirm = true
 			}
-			// Spot nötr veya alım olmalı (satış olmamalı)
 			if m.SpotCVDTrend >= models.TrendNeutral {
 				spotConfirm = true
 			}
 		} else {
-			// Momentum SHORT: perp satış baskısı olmalı
 			if m.PerpCVDTrend <= models.TrendDown {
 				perpConfirm = true
 			}
-			// Spot nötr veya satış olmalı (alım olmamalı)
 			if m.SpotCVDTrend <= models.TrendNeutral {
 				spotConfirm = true
 			}
 		}
 	}
 
-	// Pure Bybit coinlerinde CVD verisi yoksa bu kontrolü bypass et
 	if noCVDData {
 		return true
 	}
 
 	return perpConfirm && spotConfirm
+}
+
+// checkEMAConfirmation verifies EMA structure across timeframes
+func checkEMAConfirmation(metrics map[string]*models.TimeframeMetrics, dir models.SignalDirection) bool {
+	confirmedTFs := 0
+	totalTFs := 0
+
+	for _, m := range metrics {
+		if m.EMAFast == 0 && m.EMASlow == 0 {
+			continue
+		}
+		totalTFs++
+		if dir == models.DirectionLong && m.EMABull {
+			confirmedTFs++
+		}
+		if dir == models.DirectionShort && !m.EMABull {
+			confirmedTFs++
+		}
+	}
+
+	if totalTFs == 0 {
+		return false
+	}
+	// At least half of timeframes must have correct EMA structure
+	return confirmedTFs*2 >= totalTFs
 }
 
 func calcConfluenceScore(
@@ -167,48 +195,48 @@ func calcConfluenceScore(
 	dir models.SignalDirection,
 	hasOBSupport bool,
 	hasCVDConfirm bool,
+	hasEMAConfirm bool,
 ) int {
 	score := 0
 
-	// ── Base: timeframe alignment (max 40) ─────────
-	// Strict: single TF gets nothing (filtered above)
+	// ── Base: timeframe alignment (max 30) ─────────
 	switch aligned {
 	case 4:
-		score += 40 // All 4 TFs agree — very strong
+		score += 30
 	case 3:
-		score += 28 // 3/4 — solid
+		score += 22
 	case 2:
-		score += 18 // 2/4 — minimum viable
+		score += 14
 	}
 
-	// ── HTF alignment bonus (max 20) ───────────────
-	// Higher timeframes carry more weight — institutional alignment
+	// ── HTF alignment bonus (max 15) ───────────────
 	if tfs["240"] {
-		score += 14 // 4H alignment is critical
+		score += 10
 	}
 	if tfs["60"] {
-		score += 6 // 1H adds confluence
+		score += 5
 	}
 
-	// ── OI-CVD Momentum strength (max 15) ──────────
-	// Trend-following: OI + CVD aynı yönde = güçlü momentum
+	// ── EMA structure (max 15) ─────────────────────
+	// EMA alignment is the most critical indicator
+	if hasEMAConfirm {
+		score += 15
+	}
+
+	// ── OI-CVD Momentum (max 15) ───────────────────
 	divScore := 0
 	for _, m := range metrics {
 		if dir == models.DirectionLong {
-			// LONG: OI artıyor + perp alım baskısı = momentum güçlü
 			if m.OITrend >= models.TrendUp && m.PerpCVDTrend >= models.TrendUp {
 				divScore += 5
 			}
-			// Spot alım desteği = ek teyit
 			if m.SpotCVDTrend >= models.TrendUp {
 				divScore += 3
 			}
 		} else {
-			// SHORT: OI artıyor + perp satış baskısı = momentum güçlü
 			if m.OITrend >= models.TrendUp && m.PerpCVDTrend <= models.TrendDown {
 				divScore += 5
 			}
-			// Spot satış desteği = ek teyit
 			if m.SpotCVDTrend <= models.TrendDown {
 				divScore += 3
 			}
@@ -225,20 +253,14 @@ func calcConfluenceScore(
 	}
 
 	// ── CVD dual confirmation (max 10) ─────────────
-	// Both perp AND spot CVD supporting the direction — very strong
 	if hasCVDConfirm {
 		score += 10
 	}
 
-	// ── Funding rate alignment (max 5) ─────────────
-	// Counter-funding positions have edge
+	// ── Volume profile bonus (max 5) ───────────────
 	for _, m := range metrics {
-		if dir == models.DirectionLong && m.FundingRate < -0.0002 {
-			score += 5 // Negative funding = shorts paying longs
-			break
-		}
-		if dir == models.DirectionShort && m.FundingRate > 0.0003 {
-			score += 5 // Very positive = longs overleveraged
+		if m.VolProfile >= 1.2 {
+			score += 5
 			break
 		}
 	}

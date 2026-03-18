@@ -16,8 +16,10 @@ import (
 	"bybit_trader/pkg/dashboard"
 	"bybit_trader/pkg/exchange"
 	"bybit_trader/pkg/exchange/binance"
+	"bybit_trader/pkg/exchange/bitget"
 	"bybit_trader/pkg/exchange/bybit"
 	"bybit_trader/pkg/exchange/coinbase"
+	"bybit_trader/pkg/exchange/kraken"
 	"bybit_trader/pkg/exchange/okx"
 	"bybit_trader/pkg/executor"
 	"bybit_trader/pkg/models"
@@ -58,14 +60,18 @@ func main() {
 		}
 	}()
 
-	// Build aggregated data providers (Bybit + Binance + OKX + Coinbase)
+	// Build aggregated data providers (Bybit + Binance + OKX + Coinbase + Kraken + Bitget)
+	krakenClient := kraken.NewClient()
+	bitgetClient := bitget.NewClient()
 	providers := []exchange.DataProvider{
 		bybit.NewProvider(bybitClient),
 		binance.NewProvider(binanceClient),
 		okxClient,      // OKX client implements DataProvider directly
 		coinbaseClient, // Coinbase: spot orderbook depth
+		krakenClient,   // Kraken: spot orderbook depth
+		bitgetClient,   // Bitget: futures OI + futures/spot orderbook
 	}
-	log.Printf("Data providers: %d exchanges (Bybit + Binance + OKX + Coinbase)", len(providers))
+	log.Printf("Data providers: %d exchanges (Bybit + Binance + OKX + Coinbase + Kraken + Bitget)", len(providers))
 	engine := analysis.NewEngine(bybitClient, providers)
 
 	// ── Initialize Trade Store ─────────────────────────

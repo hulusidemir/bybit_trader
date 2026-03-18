@@ -412,6 +412,58 @@ func (c *Client) FetchFuturesOrderbook(symbol string, limit int) (*models.Orderb
 	return ob, nil
 }
 
+// FetchSpotOrderbook returns the spot orderbook depth from Binance.
+func (c *Client) FetchSpotOrderbook(symbol string, limit int) (*models.OrderbookSnapshot, error) {
+	body, err := c.doGet(spotBaseURL, "/api/v3/depth", map[string]string{
+		"symbol": symbol,
+		"limit":  strconv.Itoa(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var resp struct {
+		Bids [][]json.RawMessage `json:"bids"`
+		Asks [][]json.RawMessage `json:"asks"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal spot depth: %w", err)
+	}
+
+	ob := &models.OrderbookSnapshot{
+		Symbol: symbol,
+		Bids:   make([]models.OrderbookLevel, 0, len(resp.Bids)),
+		Asks:   make([]models.OrderbookLevel, 0, len(resp.Asks)),
+	}
+
+	parseLevel := func(row []json.RawMessage) (float64, float64) {
+		if len(row) < 2 {
+			return 0, 0
+		}
+		var ps, ss string
+		json.Unmarshal(row[0], &ps)
+		json.Unmarshal(row[1], &ss)
+		p, _ := strconv.ParseFloat(ps, 64)
+		s, _ := strconv.ParseFloat(ss, 64)
+		return p, s
+	}
+
+	for _, b := range resp.Bids {
+		price, size := parseLevel(b)
+		if price > 0 {
+			ob.Bids = append(ob.Bids, models.OrderbookLevel{Price: price, Amount: size})
+		}
+	}
+	for _, a := range resp.Asks {
+		price, size := parseLevel(a)
+		if price > 0 {
+			ob.Asks = append(ob.Asks, models.OrderbookLevel{Price: price, Amount: size})
+		}
+	}
+
+	return ob, nil
+}
+
 // FetchGlobalLSRatio returns global long/short account ratio from Binance futures.
 // period: 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
 func (c *Client) FetchGlobalLSRatio(symbol, period string, limit int) ([]models.LongShortRatio, error) {

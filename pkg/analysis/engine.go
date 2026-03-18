@@ -22,7 +22,7 @@ func NewEngine(b *bybit.Client, providers []exchange.DataProvider) *Engine {
 // timeframes used for analysis
 var timeframes = []string{"5", "15", "60", "240"}
 
-// bybit kline intervals (same values as tfKey for bybit)
+// bybit kline intervals
 var klineIntervals = map[string]string{
 	"5": "5", "15": "15", "60": "60", "240": "240",
 }
@@ -45,7 +45,13 @@ type aggregatedTFData struct {
 	lsRatios     []float64
 }
 
-// AnalyzeCoin performs full multi-timeframe analysis using aggregated data from all providers
+type orderbookSet struct {
+	futures []*models.OrderbookSnapshot
+	spot    []*models.OrderbookSnapshot
+}
+
+// AnalyzeCoin performs full multi-timeframe analysis using aggregated data from all providers.
+// Price-action-first approach: kline analysis determines structure, then confirmation data is layered.
 func (e *Engine) AnalyzeCoin(coin *models.Coin) *models.CoinAnalysis {
 	analysis := &models.CoinAnalysis{
 		Symbol:      coin.Symbol,
@@ -55,8 +61,8 @@ func (e *Engine) AnalyzeCoin(coin *models.Coin) *models.CoinAnalysis {
 		FundingRate: coin.FundingRate,
 	}
 
-	// Fetch orderbooks from all providers (once, in parallel)
-	orderbooks := e.fetchAllOrderbooks(coin.Symbol, 50)
+	// Fetch orderbooks from all providers (once, in parallel) — split futures vs spot
+	obs := e.fetchAllOrderbooks(coin.Symbol, 50)
 
 	for _, tf := range timeframes {
 		metrics := &models.TimeframeMetrics{
@@ -68,41 +74,52 @@ func (e *Engine) AnalyzeCoin(coin *models.Coin) *models.CoinAnalysis {
 			FundingInterval: coin.FundingInterval,
 		}
 
-		// Fetch OI, CVD, LS from all providers in parallel
+		// ═══ PHASE 1: PRICE ACTION (from Bybit klines) ═══
+		klines, err := e.bybit.FetchKline(coin.Symbol, klineIntervals[tf], 30)
+		if err != nil {
+			log.Printf("[%s][%s] kline fetch error: %v", coin.Symbol, tf, err)
+		} else if len(klines) >= 6 {
+			metrics.ATR = calcATR(klines, 14)
+			metrics.PriceTrend = calcPriceTrend(klines)
+			metrics.PriceRangePos = calcPriceRangePos(klines, coin.LastPrice)
+
+			// EMA calculation for momentum structure
+			metrics.EMAFast = calcEMA(klines, 9)
+			metrics.EMASlow = calcEMA(klines, 21)
+			metrics.EMABull = metrics.EMAFast > metrics.EMASlow
+
+			// Volume profile: current vs average
+			metrics.VolProfile = calcVolumeProfile(klines)
+		}
+
+		// ═══ PHASE 2: MARKET DATA (aggregated from all exchanges) ═══
 		agg := e.fetchAllTFData(coin.Symbol, tf)
 
-		// ── Aggregated Open Interest ─────────────────────
+		// Aggregated Open Interest
 		if len(agg.oiSeries) > 0 {
 			metrics.OIChange = exchange.AggregateOIChange(agg.oiSeries)
 			metrics.OITrend = classifyTrend(metrics.OIChange, 2.0, 5.0)
 		}
 
-		// ── Aggregated Perp CVD ──────────────────────────
+		// Aggregated Perp CVD
 		if agg.perpCVDCount > 0 {
 			metrics.PerpCVD = agg.totalPerpCVD
 			metrics.PerpCVDTrend = classifyCVDTrend(metrics.PerpCVD, coin.Turnover24h)
 		}
 
-		// ── Aggregated Spot CVD ──────────────────────────
+		// Aggregated Spot CVD
 		if agg.spotCVDCount > 0 {
 			metrics.SpotCVD = agg.totalSpotCVD
 			metrics.SpotCVDTrend = classifyCVDTrend(metrics.SpotCVD, coin.Turnover24h)
 		}
 
-		// ── Aggregated Orderbook ─────────────────────────
-		e.applyAggregatedOrderbook(metrics, orderbooks)
+		// ═══ PHASE 3: ORDERBOOK (separate futures and spot) ═══
+		e.applyFuturesOrderbook(metrics, obs.futures)
+		e.applySpotOrderbook(metrics, obs.spot)
+		// Combined OB for walls and overall bias
+		e.applyCombinedOrderbook(metrics, obs)
 
-		// ── ATR + Price Trend from Bybit klines (primary exchange) ─────
-		klines, err := e.bybit.FetchKline(coin.Symbol, klineIntervals[tf], 30)
-		if err != nil {
-			log.Printf("[%s][%s] kline fetch error: %v", coin.Symbol, tf, err)
-		} else {
-			metrics.ATR = calcATR(klines, 14)
-			metrics.PriceTrend = calcPriceTrend(klines)
-			metrics.PriceRangePos = calcPriceRangePos(klines, coin.LastPrice)
-		}
-
-		// ── Aggregated Long/Short Ratio ──────────────────
+		// Aggregated Long/Short Ratio
 		if len(agg.lsRatios) > 0 {
 			sum := 0.0
 			for _, r := range agg.lsRatios {
@@ -117,9 +134,13 @@ func (e *Engine) AnalyzeCoin(coin *models.Coin) *models.CoinAnalysis {
 	return analysis
 }
 
-// fetchAllOrderbooks fetches orderbooks from all providers in parallel.
-func (e *Engine) fetchAllOrderbooks(symbol string, depth int) []*models.OrderbookSnapshot {
-	results := make([]*models.OrderbookSnapshot, len(e.providers))
+// fetchAllOrderbooks fetches futures and spot orderbooks separately from all providers.
+func (e *Engine) fetchAllOrderbooks(symbol string, depth int) orderbookSet {
+	type result struct {
+		futures *models.OrderbookSnapshot
+		spot    *models.OrderbookSnapshot
+	}
+	results := make([]result, len(e.providers))
 	var wg sync.WaitGroup
 
 	for i, p := range e.providers {
@@ -129,21 +150,28 @@ func (e *Engine) fetchAllOrderbooks(symbol string, depth int) []*models.Orderboo
 		wg.Add(1)
 		go func(idx int, prov exchange.DataProvider) {
 			defer wg.Done()
-			ob, err := prov.FetchOrderbook(symbol, depth)
-			if err == nil && ob != nil {
-				results[idx] = ob
+			var r result
+			if ob, err := prov.FetchFuturesOrderbook(symbol, depth); err == nil && ob != nil {
+				r.futures = ob
 			}
+			if ob, err := prov.FetchSpotOrderbook(symbol, depth); err == nil && ob != nil {
+				r.spot = ob
+			}
+			results[idx] = r
 		}(i, p)
 	}
 	wg.Wait()
 
-	var obs []*models.OrderbookSnapshot
-	for _, ob := range results {
-		if ob != nil && (len(ob.Bids) > 0 || len(ob.Asks) > 0) {
-			obs = append(obs, ob)
+	var set orderbookSet
+	for _, r := range results {
+		if r.futures != nil && (len(r.futures.Bids) > 0 || len(r.futures.Asks) > 0) {
+			set.futures = append(set.futures, r.futures)
+		}
+		if r.spot != nil && (len(r.spot.Bids) > 0 || len(r.spot.Asks) > 0) {
+			set.spot = append(set.spot, r.spot)
 		}
 	}
-	return obs
+	return set
 }
 
 // fetchAllTFData fetches OI, CVD, LS data from all providers for a given timeframe in parallel.
@@ -189,9 +217,33 @@ func (e *Engine) fetchAllTFData(symbol, tfKey string) aggregatedTFData {
 	return agg
 }
 
-// applyAggregatedOrderbook merges orderbooks from all exchanges into metrics.
-func (e *Engine) applyAggregatedOrderbook(metrics *models.TimeframeMetrics, orderbooks []*models.OrderbookSnapshot) {
+// ── Orderbook Processing ────────────────────────────────────
+
+func (e *Engine) applyFuturesOrderbook(metrics *models.TimeframeMetrics, orderbooks []*models.OrderbookSnapshot) {
 	if len(orderbooks) == 0 {
+		return
+	}
+	totalBidVol, totalAskVol := aggregateOBVolume(orderbooks)
+	if totalAskVol > 0 {
+		ratio := totalBidVol / totalAskVol
+		metrics.FuturesOBBias = classifyOBBias(ratio)
+	}
+}
+
+func (e *Engine) applySpotOrderbook(metrics *models.TimeframeMetrics, orderbooks []*models.OrderbookSnapshot) {
+	if len(orderbooks) == 0 {
+		return
+	}
+	totalBidVol, totalAskVol := aggregateOBVolume(orderbooks)
+	if totalAskVol > 0 {
+		ratio := totalBidVol / totalAskVol
+		metrics.SpotOBBias = classifyOBBias(ratio)
+	}
+}
+
+func (e *Engine) applyCombinedOrderbook(metrics *models.TimeframeMetrics, obs orderbookSet) {
+	all := append(obs.futures, obs.spot...)
+	if len(all) == 0 {
 		return
 	}
 
@@ -200,7 +252,7 @@ func (e *Engine) applyAggregatedOrderbook(metrics *models.TimeframeMetrics, orde
 	maxBidWallVal := 0.0
 	maxAskWallVal := 0.0
 
-	for _, ob := range orderbooks {
+	for _, ob := range all {
 		for _, b := range ob.Bids {
 			totalBidVol += b.Amount * b.Price
 		}
@@ -227,6 +279,18 @@ func (e *Engine) applyAggregatedOrderbook(metrics *models.TimeframeMetrics, orde
 		metrics.OBImbalance = totalBidVol / totalAskVol
 		metrics.OBBias = classifyOBBias(metrics.OBImbalance)
 	}
+}
+
+func aggregateOBVolume(orderbooks []*models.OrderbookSnapshot) (bidVol, askVol float64) {
+	for _, ob := range orderbooks {
+		for _, b := range ob.Bids {
+			bidVol += b.Amount * b.Price
+		}
+		for _, a := range ob.Asks {
+			askVol += a.Amount * a.Price
+		}
+	}
+	return
 }
 
 // ── Helper Functions ────────────────────────────────────────
@@ -342,25 +406,25 @@ func findWall(levels []models.OrderbookLevel) (price, size float64) {
 }
 
 // calcPriceTrend determines price direction from recent candles.
-// Compares the average close of last 3 candles vs the previous 3.
+// Uses weighted comparison and candle structure analysis.
 func calcPriceTrend(candles []models.OHLCV) models.Trend {
-	if len(candles) < 6 {
+	n := len(candles)
+	if n < 10 {
 		return models.TrendNeutral
 	}
 
-	// Recent 3 candles average close
+	// Compare last 5 candles avg vs previous 5
 	recentSum := 0.0
-	for i := len(candles) - 3; i < len(candles); i++ {
+	for i := n - 5; i < n; i++ {
 		recentSum += candles[i].Close
 	}
-	recentAvg := recentSum / 3.0
+	recentAvg := recentSum / 5.0
 
-	// Previous 3 candles average close
 	prevSum := 0.0
-	for i := len(candles) - 6; i < len(candles)-3; i++ {
+	for i := n - 10; i < n-5; i++ {
 		prevSum += candles[i].Close
 	}
-	prevAvg := prevSum / 3.0
+	prevAvg := prevSum / 5.0
 
 	if prevAvg == 0 {
 		return models.TrendNeutral
@@ -368,19 +432,48 @@ func calcPriceTrend(candles []models.OHLCV) models.Trend {
 
 	changePct := (recentAvg - prevAvg) / prevAvg * 100
 
-	if changePct > 0.5 {
+	// Also check candle structure: higher lows / lower highs
+	hlScore := calcHLScore(candles[n-10:])
+
+	// Combined directional strength
+	strength := changePct + hlScore*0.3
+
+	if strength > 0.6 {
 		return models.TrendStrongUp
 	}
-	if changePct > 0.15 {
+	if strength > 0.2 {
 		return models.TrendUp
 	}
-	if changePct < -0.5 {
+	if strength < -0.6 {
 		return models.TrendStrongDown
 	}
-	if changePct < -0.15 {
+	if strength < -0.2 {
 		return models.TrendDown
 	}
 	return models.TrendNeutral
+}
+
+// calcHLScore measures higher-lows vs lower-highs structure.
+// Positive = bullish structure, Negative = bearish structure.
+func calcHLScore(candles []models.OHLCV) float64 {
+	if len(candles) < 3 {
+		return 0
+	}
+	higherLows := 0
+	lowerHighs := 0
+	for i := 1; i < len(candles); i++ {
+		if candles[i].Low > candles[i-1].Low {
+			higherLows++
+		}
+		if candles[i].High < candles[i-1].High {
+			lowerHighs++
+		}
+	}
+	total := len(candles) - 1
+	if total == 0 {
+		return 0
+	}
+	return float64(higherLows-lowerHighs) / float64(total) * 100
 }
 
 // calcPriceRangePos calculates where current price sits within recent high-low range.
@@ -414,4 +507,66 @@ func calcPriceRangePos(candles []models.OHLCV, currentPrice float64) float64 {
 		pos = 100
 	}
 	return pos
+}
+
+// calcEMA computes the Exponential Moving Average for the given period.
+// Returns the final EMA value.
+func calcEMA(candles []models.OHLCV, period int) float64 {
+	if len(candles) == 0 {
+		return 0
+	}
+	if len(candles) < period {
+		sum := 0.0
+		for _, c := range candles {
+			sum += c.Close
+		}
+		return sum / float64(len(candles))
+	}
+
+	// Seed EMA with SMA of first `period` candles
+	sma := 0.0
+	for i := 0; i < period; i++ {
+		sma += candles[i].Close
+	}
+	ema := sma / float64(period)
+
+	// Apply EMA formula for remaining candles
+	k := 2.0 / float64(period+1)
+	for i := period; i < len(candles); i++ {
+		ema = candles[i].Close*k + ema*(1-k)
+	}
+
+	return ema
+}
+
+// calcVolumeProfile returns current volume / average volume.
+// >1 means above average, <1 means below average.
+func calcVolumeProfile(candles []models.OHLCV) float64 {
+	if len(candles) < 5 {
+		return 1.0
+	}
+
+	// Average volume of all candles except last 3
+	avgPeriod := len(candles) - 3
+	if avgPeriod < 3 {
+		avgPeriod = 3
+	}
+	var avgSum float64
+	for i := 0; i < avgPeriod; i++ {
+		avgSum += candles[i].Volume
+	}
+	avgVol := avgSum / float64(avgPeriod)
+
+	if avgVol == 0 {
+		return 1.0
+	}
+
+	// Recent 3 candles average
+	var recentSum float64
+	for i := len(candles) - 3; i < len(candles); i++ {
+		recentSum += candles[i].Volume
+	}
+	recentVol := recentSum / 3.0
+
+	return recentVol / avgVol
 }

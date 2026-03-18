@@ -60,12 +60,8 @@ func GenerateSignals(mtfResults []analysis.MTFResult, tpCfg TPConfig) []*models.
 			continue
 		}
 
-		// (R:R zorunluluğu kullanıcının isteği üzerine tamamen kaldırıldı)
-
 		// ══════════════════════════════════════════════════
 		// QUALITY GATE 2: Funding rate filter for SHORT
-		// Very negative funding = market already heavily short,
-		// high short squeeze risk + expensive funding cost
 		// ══════════════════════════════════════════════════
 		if sig.Direction == models.DirectionShort && tpCfg.ShortFundingRateLimit < 0 && sig.FundingRate < tpCfg.ShortFundingRateLimit {
 			continue
@@ -86,19 +82,25 @@ func GenerateSignals(mtfResults []analysis.MTFResult, tpCfg TPConfig) []*models.
 		}
 
 		// ══════════════════════════════════════════════════
-		// QUALITY GATE 5: Price trend must confirm direction
-		// Fiyat trendi sinyal yönüyle aynı olmalı.
-		// LONG için fiyat yukarı gidiyor olmalı, SHORT için aşağı.
+		// QUALITY GATE 5: EMA structure must confirm
+		// EMA9 > EMA21 for LONG, EMA9 < EMA21 for SHORT
+		// ══════════════════════════════════════════════════
+		if !r.HasEMAConfirm {
+			continue
+		}
+
+		// ══════════════════════════════════════════════════
+		// QUALITY GATE 6: Price trend must confirm direction
+		// Both 5m AND 15m must show matching price direction
 		// ══════════════════════════════════════════════════
 		if !checkPriceTrendConfirm(r, sig.Direction) {
 			continue
 		}
 
 		// ══════════════════════════════════════════════════
-		// QUALITY GATE 6: Price range position filter
-		// Tepede LONG açma, dipte SHORT açma.
-		// LONG: fiyat aralığın üst %75'inde olmamalı
-		// SHORT: fiyat aralığın alt %25'inde olmamalı
+		// QUALITY GATE 7: Price range position filter
+		// TIGHTER: 25-75 zone only (was 20-80)
+		// Prevents chasing extended moves
 		// ══════════════════════════════════════════════════
 		if !checkPriceRangeFilter(r, sig.Direction) {
 			continue
@@ -142,11 +144,11 @@ func checkPriceRangeFilter(r analysis.MTFResult, dir models.SignalDirection) boo
 		return true // no range data = allow
 	}
 
-	if dir == models.DirectionLong && m.PriceRangePos > 80 {
-		return false // fiyat zaten tepede — LONG açma
+	if dir == models.DirectionLong && m.PriceRangePos > 75 {
+		return false // price already at top — don't LONG
 	}
-	if dir == models.DirectionShort && m.PriceRangePos < 20 {
-		return false // fiyat zaten dipte — SHORT açma
+	if dir == models.DirectionShort && m.PriceRangePos < 25 {
+		return false // price already at bottom — don't SHORT
 	}
 	return true
 }
@@ -167,7 +169,7 @@ func buildSignal(r analysis.MTFResult, tpCfg TPConfig) *models.Signal {
 	grade := models.GradeB
 	if r.ConfluenceScore >= 85 {
 		grade = models.GradeAPlus
-	} else if r.ConfluenceScore >= 75 {
+	} else if r.ConfluenceScore >= 70 {
 		grade = models.GradeA
 	}
 

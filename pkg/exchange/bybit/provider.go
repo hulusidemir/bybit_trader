@@ -42,8 +42,13 @@ func (p *Provider) FetchSpotTakerVolume(_ string, _ string, _ int) ([]models.Tak
 	return nil, nil
 }
 
-func (p *Provider) FetchOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error) {
+func (p *Provider) FetchFuturesOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error) {
 	return p.client.FetchOrderbook(bybitSymbol, depth)
+}
+
+// FetchSpotOrderbook returns nil — Bybit spot not available via this client.
+func (p *Provider) FetchSpotOrderbook(_ string, _ int) (*models.OrderbookSnapshot, error) {
+	return nil, nil
 }
 
 func (p *Provider) FetchLSRatio(bybitSymbol, tfKey string, limit int) ([]models.LongShortRatio, error) {

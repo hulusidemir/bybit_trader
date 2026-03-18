@@ -90,7 +90,7 @@ func (p *Provider) FetchSpotTakerVolume(bybitSymbol, tfKey string, limit int) ([
 	return data, nil
 }
 
-func (p *Provider) FetchOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error) {
+func (p *Provider) FetchFuturesOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error) {
 	sym := BybitToFuturesSymbol(bybitSymbol)
 	if !IsFuturesSymbolValid(sym) {
 		return nil, nil
@@ -99,6 +99,21 @@ func (p *Provider) FetchOrderbook(bybitSymbol string, depth int) (*models.Orderb
 	if err != nil {
 		if isInvalidSymbolErr(err) {
 			MarkFuturesInvalid(sym)
+		}
+		return nil, err
+	}
+	return data, nil
+}
+
+func (p *Provider) FetchSpotOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error) {
+	sym := BybitToSpotSymbol(bybitSymbol)
+	if !IsSpotSymbolValid(sym) {
+		return nil, nil
+	}
+	data, err := p.client.FetchSpotOrderbook(sym, depth)
+	if err != nil {
+		if isInvalidSymbolErr(err) {
+			MarkSpotInvalid(sym)
 		}
 		return nil, err
 	}

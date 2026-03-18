@@ -391,9 +391,20 @@ func (c *Client) FetchSpotTakerVolume(bybitSymbol, tfKey string, limit int) ([]m
 	return c.fetchTakerVolume(bybitToCcy(bybitSymbol), "SPOT", period)
 }
 
-func (c *Client) FetchOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error) {
+func (c *Client) FetchFuturesOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error) {
 	instID := bybitToSwapInstID(bybitSymbol)
 	if !c.hasSwapSymbol(instID) {
+		return nil, nil
+	}
+	return c.fetchOrderbook(instID, depth)
+}
+
+func (c *Client) FetchSpotOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error) {
+	instID := bybitToSpotInstID(bybitSymbol)
+	c.mu.RLock()
+	has := c.spotSymbols[instID]
+	c.mu.RUnlock()
+	if !has {
 		return nil, nil
 	}
 	return c.fetchOrderbook(instID, depth)

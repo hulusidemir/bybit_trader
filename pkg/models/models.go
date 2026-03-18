@@ -7,6 +7,15 @@ import "time"
 type PatternName string
 
 const (
+	// Momentum-focused patterns (v2)
+	PatternMomentumLong    PatternName = "Momentum Long"
+	PatternMomentumShort   PatternName = "Momentum Short"
+	PatternBreakoutLong    PatternName = "Breakout Long"
+	PatternBreakoutShort   PatternName = "Breakout Short"
+	PatternConfluenceLong  PatternName = "Confluence Long"
+	PatternConfluenceShort PatternName = "Confluence Short"
+
+	// Legacy names kept for DB compat
 	PatternStealthAccumulation  PatternName = "Stealth Accumulation"
 	PatternAggressiveDistro     PatternName = "Aggressive Distribution"
 	PatternWhaleSqueezeSetup    PatternName = "Whale Squeeze Setup"
@@ -166,6 +175,18 @@ type TimeframeMetrics struct {
 	ATR              float64 // Average True Range (14-period)
 	PriceTrend       Trend   // price direction from recent candles
 	PriceRangePos    float64 // 0-100: position within recent high-low range (0=bottom, 100=top)
+
+	// EMA-based momentum detection
+	EMAFast   float64 // EMA 9 value
+	EMASlow   float64 // EMA 21 value
+	EMABull   bool    // true if EMA9 > EMA21 (bullish structure)
+
+	// Volume profile
+	VolProfile float64 // current volume / average volume (>1 = above avg)
+
+	// Separate futures vs spot orderbook bias
+	FuturesOBBias OrderbookBias
+	SpotOBBias    OrderbookBias
 }
 
 type CoinAnalysis struct {

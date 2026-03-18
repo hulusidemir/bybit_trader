@@ -11,7 +11,8 @@ type DataProvider interface {
 	FetchOI(bybitSymbol, tfKey string, limit int) ([]models.OpenInterestPoint, error)
 	FetchPerpTakerVolume(bybitSymbol, tfKey string, limit int) ([]models.TakerVolume, error)
 	FetchSpotTakerVolume(bybitSymbol, tfKey string, limit int) ([]models.TakerVolume, error)
-	FetchOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error)
+	FetchFuturesOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error)
+	FetchSpotOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error)
 	FetchLSRatio(bybitSymbol, tfKey string, limit int) ([]models.LongShortRatio, error)
 }
 
