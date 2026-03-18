@@ -345,10 +345,16 @@ func (e *Executor) CancelOrder(symbol, orderID string) error {
 	return e.trade.CancelOrder(symbol, orderID)
 }
 
-// GetPositionSize returns the current position size on the exchange.
-// Returns 0 if no position exists (manually closed or liquidated).
-func (e *Executor) GetPositionSize(symbol string) (float64, error) {
-	pos, err := e.trade.GetPosition(symbol)
+// GetPositionSize returns the current position size on the exchange for the
+// given direction. In hedge mode this ensures we check the correct side
+// (Buy for Long, Sell for Short) instead of accidentally reading the
+// opposite side's empty row.
+func (e *Executor) GetPositionSize(symbol string, direction models.SignalDirection) (float64, error) {
+	side := "Buy"
+	if direction == models.DirectionShort {
+		side = "Sell"
+	}
+	pos, err := e.trade.GetPosition(symbol, side)
 	if err != nil {
 		return 0, err
 	}

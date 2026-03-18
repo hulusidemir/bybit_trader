@@ -303,7 +303,7 @@ func (m *Monitor) handlePositionUpdate(p models.PositionUpdatePayload) {
 		// (e.g. after placing a TP limit order). Go decodes the missing
 		// field as 0.0, which looks like a closed position. Verify via
 		// REST API before taking any destructive action.
-		restSize, restErr := m.exec.GetPositionSize(trade.Symbol)
+		restSize, restErr := m.exec.GetPositionSize(trade.Symbol, trade.Direction)
 		if restErr != nil {
 			log.Printf("[Monitor] ⚠️ REST position check failed for %s: %v — skipping close", trade.Symbol, restErr)
 			return // network error — do NOT close, safer to wait

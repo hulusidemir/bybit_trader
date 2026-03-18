@@ -570,8 +570,10 @@ func (tc *TradeClient) getOrderFromEndpoint(endpoint, symbol, orderID string) (*
 	}, nil
 }
 
-// GetPosition gets the current position for a symbol
-func (tc *TradeClient) GetPosition(symbol string) (*PositionDetail, error) {
+// GetPosition gets the current position for a symbol filtered by side.
+// In hedge mode Bybit returns two rows (Buy + Sell). The side parameter
+// selects the correct one. Pass "" to get the first non-empty position.
+func (tc *TradeClient) GetPosition(symbol, side string) (*PositionDetail, error) {
 	raw, err := tc.doAuthGet("/v5/position/list", map[string]string{
 		"category": "linear",
 		"symbol":   symbol,
@@ -596,21 +598,24 @@ func (tc *TradeClient) GetPosition(symbol string) (*PositionDetail, error) {
 		return nil, err
 	}
 
-	if len(resp.List) == 0 {
-		return &PositionDetail{Symbol: symbol, Side: "None", Size: "0"}, nil
+	// In hedge mode, find the row that matches the requested side
+	for _, p := range resp.List {
+		if side != "" && p.Side != side {
+			continue
+		}
+		return &PositionDetail{
+			Symbol:        p.Symbol,
+			Side:          p.Side,
+			Size:          p.Size,
+			AvgPrice:      p.AvgPrice,
+			PositionValue: p.PositionValue,
+			UnrealisedPnl: p.UnrealisedPnl,
+			Leverage:      p.Leverage,
+			LiqPrice:      p.LiqPrice,
+		}, nil
 	}
 
-	p := resp.List[0]
-	return &PositionDetail{
-		Symbol:        p.Symbol,
-		Side:          p.Side,
-		Size:          p.Size,
-		AvgPrice:      p.AvgPrice,
-		PositionValue: p.PositionValue,
-		UnrealisedPnl: p.UnrealisedPnl,
-		Leverage:      p.Leverage,
-		LiqPrice:      p.LiqPrice,
-	}, nil
+	return &PositionDetail{Symbol: symbol, Side: "None", Size: "0"}, nil
 }
 
 // GetWalletBalance returns available USDT balance
