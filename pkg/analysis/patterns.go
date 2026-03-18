@@ -41,13 +41,12 @@ var AllPatterns = []PatternDef{
 	{
 		Name:      models.PatternWhaleSqueezeSetup,
 		Direction: models.DirectionLong,
-		Description: "OI çok yüksek, perp CVD çok negatif, ask tarafı ince. " +
-			"Trend takip — squeeze tetiklendiğinde sert yukarı hareket beklenir.",
+		Description: "OI çok yüksek, perp CVD pozitif, bid wall güçlü. " +
+			"Trend takip — alıcılar agresif, yukarı momentum devam ediyor.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend >= models.TrendStrongUp &&
-				m.PerpCVDTrend <= models.TrendStrongDown &&
-				m.SpotCVDTrend == models.TrendNeutral &&
-				m.OBBias <= models.OBAskWall // thin ask = easy to push up
+				m.PerpCVDTrend >= models.TrendUp &&
+				m.OBBias >= models.OBBidWall // bid wall = alıcı desteği var
 		},
 	},
 	{
@@ -127,13 +126,13 @@ var AllPatterns = []PatternDef{
 	{
 		Name:      models.PatternLiqCascadeLong,
 		Direction: models.DirectionLong,
-		Description: "OI düşüyor, perp CVD çok pozitif, spot alım var. " +
-			"Trend takip — squeeze devam ediyor, yukarı momentum güçlü.",
+		Description: "OI düşüyor, perp CVD çok pozitif, spot alım var, bid wall güçlü. " +
+			"Trend takip — short tasfiyesi devam ediyor, yukarı momentum güçlü.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend <= models.TrendStrongDown &&
 				m.PerpCVDTrend >= models.TrendStrongUp &&
 				m.SpotCVDTrend >= models.TrendUp &&
-				m.OBBias <= models.OBAskWall // thin ask = easy to break
+				m.OBBias >= models.OBBidWall // bid wall = alım desteği var
 		},
 	},
 	{
@@ -163,12 +162,13 @@ var AllPatterns = []PatternDef{
 	{
 		Name:      models.PatternExhaustionTop,
 		Direction: models.DirectionShort,
-		Description: "OI düşerken perp CVD pozitif: son nefes pompası. " +
-			"Trend takip — OI düşerken alım baskısı tükeniyor, aşağı dönüş beklenir.",
+		Description: "OI düşerken perp CVD pozitif, spot satış, ask wall baskın. " +
+			"Trend takip — son alıcılar tükeniyor, aşağı dönüş beklenir.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend <= models.TrendDown &&
 				m.PerpCVDTrend >= models.TrendUp &&
-				m.SpotCVDTrend <= models.TrendDown
+				m.SpotCVDTrend <= models.TrendDown &&
+				m.OBBias <= models.OBAskWall // ask wall = satıcı direnci
 		},
 	},
 	{

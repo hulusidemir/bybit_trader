@@ -296,10 +296,9 @@ func runScan(
 	// Process signals
 	newSignals := 0
 	recentMu.Lock()
-	// Clean old entries (older than 2 hours)
-	// Long cooldown prevents overtrading same coin
-	for k, t := range recentSignals {
-		if time.Since(t) > 2*time.Hour {
+// Clean old entries (older than 30 minutes)
+		for k, t := range recentSignals {
+			if time.Since(t) > 30*time.Minute {
 			delete(recentSignals, k)
 		}
 	}

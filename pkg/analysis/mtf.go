@@ -109,12 +109,12 @@ func AnalyzeMTF(analysis *models.CoinAnalysis) []MTFResult {
 
 func checkOBSupport(metrics map[string]*models.TimeframeMetrics, dir models.SignalDirection) bool {
 	for _, m := range metrics {
-		// Contrarian SHORT: bullish market → bid wall confirms setup
-		if dir == models.DirectionShort && m.OBBias >= models.OBBidWall {
+		// Momentum LONG: bid wall = alıcılar güçlü, destek var
+		if dir == models.DirectionLong && m.OBBias >= models.OBBidWall {
 			return true
 		}
-		// Contrarian LONG: bearish market → ask wall confirms setup
-		if dir == models.DirectionLong && m.OBBias <= models.OBAskWall {
+		// Momentum SHORT: ask wall = satıcılar güçlü, direnç var
+		if dir == models.DirectionShort && m.OBBias <= models.OBAskWall {
 			return true
 		}
 	}
@@ -124,31 +124,37 @@ func checkOBSupport(metrics map[string]*models.TimeframeMetrics, dir models.Sign
 func checkCVDConfirmation(metrics map[string]*models.TimeframeMetrics, dir models.SignalDirection) bool {
 	perpConfirm := false
 	spotConfirm := false
+	noCVDData := true // track if any CVD data exists
 
 	for _, m := range metrics {
-		if dir == models.DirectionShort {
-			// Contrarian SHORT: market is bullish → need bullish CVD to confirm setup
-			if m.SpotCVDTrend >= models.TrendUp {
-				spotConfirm = true
-			}
-			if m.PerpCVDTrend <= models.TrendDown {
-				perpConfirm = true // Perp selling while spot buying = stealth accumulation
-			}
+		if m.PerpCVD != 0 || m.SpotCVD != 0 {
+			noCVDData = false
+		}
+
+		if dir == models.DirectionLong {
+			// Momentum LONG: perp alım baskısı olmalı
 			if m.PerpCVDTrend >= models.TrendUp {
 				perpConfirm = true
+			}
+			// Spot nötr veya alım olmalı (satış olmamalı)
+			if m.SpotCVDTrend >= models.TrendNeutral {
+				spotConfirm = true
 			}
 		} else {
-			// Contrarian LONG: market is bearish → need bearish CVD to confirm setup
-			if m.SpotCVDTrend <= models.TrendDown {
-				spotConfirm = true
-			}
-			if m.PerpCVDTrend >= models.TrendUp {
-				perpConfirm = true // Perp buying while spot selling = distribution
-			}
+			// Momentum SHORT: perp satış baskısı olmalı
 			if m.PerpCVDTrend <= models.TrendDown {
 				perpConfirm = true
 			}
+			// Spot nötr veya satış olmalı (alım olmamalı)
+			if m.SpotCVDTrend <= models.TrendNeutral {
+				spotConfirm = true
+			}
 		}
+	}
+
+	// Pure Bybit coinlerinde CVD verisi yoksa bu kontrolü bypass et
+	if noCVDData {
+		return true
 	}
 
 	return perpConfirm && spotConfirm
@@ -184,24 +190,27 @@ func calcConfluenceScore(
 		score += 6 // 1H adds confluence
 	}
 
-	// ── OI-CVD Divergence strength (max 15) ────────
+	// ── OI-CVD Momentum strength (max 15) ──────────
+	// Trend-following: OI + CVD aynı yönde = güçlü momentum
 	divScore := 0
 	for _, m := range metrics {
-		if dir == models.DirectionShort {
-			// Contrarian SHORT: bullish divergence confirms the setup we're fading
-			if m.OITrend >= models.TrendStrongUp && m.PerpCVDTrend <= models.TrendStrongDown {
-				divScore += 5 // Stealth accumulation = strong bullish → confirms SHORT
+		if dir == models.DirectionLong {
+			// LONG: OI artıyor + perp alım baskısı = momentum güçlü
+			if m.OITrend >= models.TrendUp && m.PerpCVDTrend >= models.TrendUp {
+				divScore += 5
 			}
-			if m.OITrend >= models.TrendUp && m.SpotCVDTrend >= models.TrendStrongUp {
-				divScore += 3 // Spot demand = bullish → confirms SHORT
+			// Spot alım desteği = ek teyit
+			if m.SpotCVDTrend >= models.TrendUp {
+				divScore += 3
 			}
 		} else {
-			// Contrarian LONG: bearish divergence confirms the setup we're fading
-			if m.OITrend >= models.TrendStrongUp && m.PerpCVDTrend >= models.TrendStrongUp {
-				divScore += 5 // Overextension = bearish → confirms LONG
+			// SHORT: OI artıyor + perp satış baskısı = momentum güçlü
+			if m.OITrend >= models.TrendUp && m.PerpCVDTrend <= models.TrendDown {
+				divScore += 5
 			}
-			if m.OITrend >= models.TrendUp && m.SpotCVDTrend <= models.TrendStrongDown {
-				divScore += 3 // Spot selling = bearish → confirms LONG
+			// Spot satış desteği = ek teyit
+			if m.SpotCVDTrend <= models.TrendDown {
+				divScore += 3
 			}
 		}
 	}
