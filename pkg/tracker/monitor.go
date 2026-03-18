@@ -297,7 +297,23 @@ func (m *Monitor) handlePositionUpdate(p models.PositionUpdatePayload) {
 		if trade.Status == models.TradePending {
 			return // order not filled yet — size=0 is expected, ignore
 		}
-		log.Printf("[Monitor] ⚠️ Position vanished via WS: %s — external close/liquidation", p.Symbol)
+
+		// ── Delta Update Trap Guard ─────────────────────────────
+		// Bybit WS may send delta payloads that omit the "size" field
+		// (e.g. after placing a TP limit order). Go decodes the missing
+		// field as 0.0, which looks like a closed position. Verify via
+		// REST API before taking any destructive action.
+		restSize, restErr := m.exec.GetPositionSize(trade.Symbol)
+		if restErr != nil {
+			log.Printf("[Monitor] ⚠️ REST position check failed for %s: %v — skipping close", trade.Symbol, restErr)
+			return // network error — do NOT close, safer to wait
+		}
+		if restSize > 0 {
+			log.Printf("[Monitor] 🛡️ Delta trap caught: %s WS size=0 but REST size=%.6f — ignoring", trade.Symbol, restSize)
+			return // position still alive, WS sent a partial/delta update
+		}
+
+		log.Printf("[Monitor] ⚠️ Position vanished (REST confirmed): %s — external close/liquidation", p.Symbol)
 		m.exec.CancelAllOrders(trade.Symbol)
 
 		exitPrice := p.MarkPrice
