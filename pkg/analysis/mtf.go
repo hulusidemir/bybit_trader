@@ -98,12 +98,13 @@ func AnalyzeMTF(analysis *models.CoinAnalysis, ofs *OrderFlowState) []MTFResult 
 	return results
 }
 
-// supportsDirection checks if a TF's OB/CVD data supports the signal direction
+// supportsDirection checks if a TF's OB AND CVD both support the signal direction.
+// Uses AND logic — both indicators must confirm (not just one).
 func supportsDirection(m *models.TimeframeMetrics, dir models.SignalDirection) bool {
 	if dir == models.DirectionLong {
-		return m.OBBias >= models.OBBidWall || m.PerpCVDTrend >= models.TrendUp
+		return m.OBBias >= models.OBBidWall && m.PerpCVDTrend >= models.TrendUp
 	}
-	return m.OBBias <= models.OBAskWall || m.PerpCVDTrend <= models.TrendDown
+	return m.OBBias <= models.OBAskWall && m.PerpCVDTrend <= models.TrendDown
 }
 
 func checkOBSupport(metrics map[string]*models.TimeframeMetrics, dir models.SignalDirection) bool {
@@ -171,16 +172,26 @@ func calcConfluenceScore(
 		score += 15
 	}
 
-	// ── TF alignment (max 20) ──────────────────────
-	switch aligned {
-	case 4:
+	// ── Multi-detection bonus (max 20) ─────────────
+	// Replaces fake TF alignment (all TFs have identical data).
+	// Rewards when multiple OrderFlow modules fire simultaneously.
+	detections := 0
+	if ofs.SpoofBidDetected || ofs.SpoofAskDetected {
+		detections++
+	}
+	if ofs.BuyAbsorption || ofs.SellAbsorption {
+		detections++
+	}
+	if ofs.OIFlushing {
+		detections++
+	}
+	if ofs.CVDDivBullish || ofs.CVDDivBearish {
+		detections++
+	}
+	if detections >= 3 {
 		score += 20
-	case 3:
-		score += 15
-	case 2:
+	} else if detections >= 2 {
 		score += 10
-	case 1:
-		score += 5
 	}
 
 	// ── OI-CVD momentum (max 10) ───────────────────

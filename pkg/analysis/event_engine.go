@@ -260,13 +260,13 @@ func (e *EventEngine) evaluate(symbol string) []MTFResult {
 	}
 
 	// Data readiness: need enough events for meaningful OrderFlow analysis
-	if state.EventCount < 50 {
+	if state.EventCount < 100 {
 		return nil
 	}
 
 	// Run OrderFlow detection on raw state
 	ofs := e.orderFlow.Detect(state)
-	if ofs.ManipulationScore < 20 {
+	if ofs.ManipulationScore < 40 {
 		return nil
 	}
 

@@ -433,10 +433,10 @@ func signalProcessor(
 	cfg *config.Config,
 ) {
 	// ── Cooldown state ─────────────────────────────────
-	// Symbol cooldown: 15 min per symbol (prevents re-signaling same coin)
-	// Global cooldown: 2 min between any trade (prevents mass-opening)
-	const symbolCooldown = 15 * time.Minute
-	const globalCooldown = 2 * time.Minute
+	// Symbol cooldown: 30 min per symbol (prevents re-signaling same coin)
+	// Global cooldown: 5 min between any trade (prevents mass-opening)
+	const symbolCooldown = 30 * time.Minute
+	const globalCooldown = 5 * time.Minute
 
 	recentSignals := make(map[string]time.Time) // key: symbol → last signal time
 	var lastGlobalSignal time.Time

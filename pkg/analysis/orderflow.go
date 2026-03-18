@@ -70,15 +70,15 @@ type OrderFlowEngine struct {
 }
 
 // NewOrderFlowEngine creates an engine with production-calibrated defaults.
-// Spoofing wall threshold is now dynamic: max(10K, Turnover24h × 0.05%).
+// Spoofing wall threshold is now dynamic: max(50K, Turnover24h × 0.1%).
 func NewOrderFlowEngine() *OrderFlowEngine {
 	return &OrderFlowEngine{
-		spoofWallFloor: 10000, // $10K absolute floor (micro-cap safety net)
-		spoofWallRatio: 0.0005, // 0.05% of 24h turnover
-		spoofShrinkRatio: 0.3,  // wall must shrink to <30% of original size
+		spoofWallFloor:   50000,  // $50K absolute floor (filters low-cap noise)
+		spoofWallRatio:   0.001,  // 0.1% of 24h turnover
+		spoofShrinkRatio: 0.3,    // wall must shrink to <30% of original size
 
-		absorptionMinDelta: 0.001, // 0.1% of 24h volume as CVD delta
-		absorptionMaxPrice: 0.15,  // base: price must move <0.15% for absorption
+		absorptionMinDelta: 0.003, // 0.3% of 24h volume as CVD delta
+		absorptionMaxPrice: 0.08,  // base: price must move <0.08% for absorption
 
 		oiFlushMinDrop:  2.0, // 2% OI drop = flush
 		oiFlushMinBuild: 1.0, // 1% OI rise before flush counts
@@ -123,6 +123,22 @@ func (ofe *OrderFlowEngine) Detect(s *models.SymbolState) *OrderFlowState {
 	ofe.detectOIFlush(s, ofs)
 	ofe.detectCVDDivergence(s, ofs)
 
+	// ── Contradiction guard ──────────────────────────
+	// If opposing signals fire simultaneously, neither is reliable.
+	if ofs.SpoofBidDetected && ofs.SpoofAskDetected {
+		ofs.SpoofBidDetected = false
+		ofs.SpoofAskDetected = false
+	}
+	if ofs.BuyAbsorption && ofs.SellAbsorption {
+		ofs.BuyAbsorption = false
+		ofs.SellAbsorption = false
+		ofs.AbsorptionScore = 0
+	}
+	if ofs.CVDDivBullish && ofs.CVDDivBearish {
+		ofs.CVDDivBullish = false
+		ofs.CVDDivBearish = false
+	}
+
 	calcManipulationScore(ofs)
 
 	return ofs
@@ -133,28 +149,40 @@ func (ofe *OrderFlowEngine) Detect(s *models.SymbolState) *OrderFlowState {
 // (disappear without being filled by price trading through them).
 
 func (ofe *OrderFlowEngine) detectSpoofing(s *models.SymbolState, ofs *OrderFlowState) {
-	if len(s.WallHistory) < 4 {
+	if len(s.WallHistory) < 8 {
 		return
 	}
 
 	wallMinSize := ofe.dynamicSpoofWallMin(s.Turnover24h)
+	now := s.WallHistory[len(s.WallHistory)-1].Timestamp
 
-	// Find the most recent and previous walls for each side
+	// Find the most recent and previous walls for each side.
+	// CRITICAL: Only compare walls at the SAME price level (within 0.5%).
+	// Comparing different price levels is not spoofing — it's normal OB rotation.
 	var lastBid, prevBid, lastAsk, prevAsk *models.WallSnapshot
 
 	for i := len(s.WallHistory) - 1; i >= 0; i-- {
 		w := &s.WallHistory[i]
+		// Skip stale snapshots (>60s old) — spoof happens fast
+		if now-w.Timestamp > 60000 {
+			continue
+		}
 		if w.Side == "bid" {
 			if lastBid == nil {
 				lastBid = w
 			} else if prevBid == nil {
-				prevBid = w
+				// Must be at the SAME price level (within 0.5%)
+				if lastBid.Price > 0 && math.Abs(w.Price-lastBid.Price)/lastBid.Price < 0.005 {
+					prevBid = w
+				}
 			}
 		} else {
 			if lastAsk == nil {
 				lastAsk = w
 			} else if prevAsk == nil {
-				prevAsk = w
+				if lastAsk.Price > 0 && math.Abs(w.Price-lastAsk.Price)/lastAsk.Price < 0.005 {
+					prevAsk = w
+				}
 			}
 		}
 		if prevBid != nil && prevAsk != nil {
@@ -162,7 +190,7 @@ func (ofe *OrderFlowEngine) detectSpoofing(s *models.SymbolState, ofs *OrderFlow
 		}
 	}
 
-	// Bid side: was there a significant bid wall that suddenly shrank?
+	// Bid side: was there a significant bid wall at the SAME price that suddenly shrank?
 	if prevBid != nil && lastBid != nil {
 		prevNotional := prevBid.Price * prevBid.Size
 		lastNotional := lastBid.Price * lastBid.Size
@@ -174,7 +202,7 @@ func (ofe *OrderFlowEngine) detectSpoofing(s *models.SymbolState, ofs *OrderFlow
 		}
 	}
 
-	// Ask side: was there a significant ask wall that suddenly shrank?
+	// Ask side: was there a significant ask wall at the SAME price that suddenly shrank?
 	if prevAsk != nil && lastAsk != nil {
 		prevNotional := prevAsk.Price * prevAsk.Size
 		lastNotional := lastAsk.Price * lastAsk.Size
@@ -192,16 +220,16 @@ func (ofe *OrderFlowEngine) detectSpoofing(s *models.SymbolState, ofs *OrderFlow
 // indicating a large hidden player absorbing all the flow.
 
 func (ofe *OrderFlowEngine) detectAbsorption(s *models.SymbolState, ofs *OrderFlowState) {
-	if len(s.PriceTicks) < 10 || len(s.CVDHistory) < 10 {
+	if len(s.PriceTicks) < 20 || len(s.CVDHistory) < 20 {
 		return
 	}
 	if s.Turnover24h == 0 {
 		return
 	}
 
-	// Compare recent CVD snapshot vs 10 snapshots ago
+	// Compare recent CVD snapshot vs 20 snapshots ago (more statistical significance)
 	recent := s.CVDHistory[len(s.CVDHistory)-1]
-	older := s.CVDHistory[len(s.CVDHistory)-10]
+	older := s.CVDHistory[len(s.CVDHistory)-20]
 
 	perpDelta := recent.PerpCVD - older.PerpCVD
 	spotDelta := recent.SpotCVD - older.SpotCVD
@@ -209,7 +237,7 @@ func (ofe *OrderFlowEngine) detectAbsorption(s *models.SymbolState, ofs *OrderFl
 
 	// Price change over same period
 	recentPrice := s.PriceTicks[len(s.PriceTicks)-1].Price
-	olderIdx := len(s.PriceTicks) - 10
+	olderIdx := len(s.PriceTicks) - 20
 	if olderIdx < 0 {
 		olderIdx = 0
 	}

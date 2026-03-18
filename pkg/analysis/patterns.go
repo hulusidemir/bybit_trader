@@ -58,7 +58,7 @@ var AllPatterns = []PatternDef{
 		Description: "Tepede Absorpsiyon — Güçlü alış baskısına rağmen fiyat " +
 			"yükselemiyor. Büyük satıcı tüm alışları absorbe ediyor.",
 		Match: func(ofs *OrderFlowState) bool {
-			return ofs.BuyAbsorption && ofs.AbsorptionScore >= 0.3
+			return ofs.BuyAbsorption && ofs.AbsorptionScore >= 0.5
 		},
 	},
 	{
@@ -67,7 +67,7 @@ var AllPatterns = []PatternDef{
 		Description: "Dipte Absorpsiyon — Güçlü satış baskısına rağmen fiyat " +
 			"düşemiyor. Büyük alıcı tüm satışları absorbe ediyor.",
 		Match: func(ofs *OrderFlowState) bool {
-			return ofs.SellAbsorption && ofs.AbsorptionScore >= 0.3
+			return ofs.SellAbsorption && ofs.AbsorptionScore >= 0.5
 		},
 	},
 
