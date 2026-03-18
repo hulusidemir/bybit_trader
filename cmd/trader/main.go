@@ -432,7 +432,14 @@ func signalProcessor(
 	exec *executor.Executor,
 	cfg *config.Config,
 ) {
-	recentSignals := make(map[string]time.Time)
+	// ── Cooldown state ─────────────────────────────────
+	// Symbol cooldown: 15 min per symbol (prevents re-signaling same coin)
+	// Global cooldown: 2 min between any trade (prevents mass-opening)
+	const symbolCooldown = 15 * time.Minute
+	const globalCooldown = 2 * time.Minute
+
+	recentSignals := make(map[string]time.Time) // key: symbol → last signal time
+	var lastGlobalSignal time.Time
 
 	cleanupTicker := time.NewTicker(5 * time.Minute)
 	defer cleanupTicker.Stop()
@@ -444,21 +451,30 @@ func signalProcessor(
 			return
 
 		case <-cleanupTicker.C:
-			// Purge stale dedup entries
+			// Purge expired symbol cooldowns
 			now := time.Now()
 			for k, t := range recentSignals {
-				if now.Sub(t) > 30*time.Minute {
+				if now.Sub(t) > symbolCooldown {
 					delete(recentSignals, k)
 				}
 			}
 
 		case sig := <-signalCh:
-			// ── Dedup: symbol + direction ──────────────
-			key := sig.Symbol + string(sig.Direction)
-			if _, exists := recentSignals[key]; exists {
+			now := time.Now()
+
+			// ── Global Cooldown: 2 min between any signal ──
+			if !lastGlobalSignal.IsZero() && now.Sub(lastGlobalSignal) < globalCooldown {
 				continue
 			}
-			recentSignals[key] = time.Now()
+
+			// ── Symbol Cooldown: 15 min per symbol ─────────
+			if lastTime, exists := recentSignals[sig.Symbol]; exists {
+				if now.Sub(lastTime) < symbolCooldown {
+					continue
+				}
+			}
+			recentSignals[sig.Symbol] = now
+			lastGlobalSignal = now
 
 			// ── Telegram Notification ──────────────────
 			msg := signals.FormatTelegramMessage(sig)

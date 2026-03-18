@@ -277,7 +277,13 @@ func (m *Monitor) handlePositionUpdate(p models.PositionUpdatePayload) {
 	}
 
 	// Position vanished (size=0) → external close or liquidation
+	// CRITICAL: Ignore size=0 for PENDING trades! Bybit sends PositionUpdate
+	// with size=0 before a limit order fills. Treating this as "vanished"
+	// would kill unfilled orders (Pending Order Suicide).
 	if p.Size == 0 {
+		if trade.Status == models.TradePending {
+			return // order not filled yet — size=0 is expected, ignore
+		}
 		log.Printf("[Monitor] ⚠️ Position vanished via WS: %s — external close/liquidation", p.Symbol)
 		m.exec.CancelAllOrders(trade.Symbol)
 
