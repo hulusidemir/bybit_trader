@@ -473,6 +473,14 @@ func signalProcessor(
 					continue
 				}
 			}
+
+			// ── Active Position Guard ───────────────────
+			// Skip if there's already an open trade for this symbol.
+			// Prevents sending misleading signal then error message.
+			if existing, _ := store.GetActiveTradeBySymbol(sig.Symbol); existing != nil {
+				continue
+			}
+
 			recentSignals[sig.Symbol] = now
 			lastGlobalSignal = now
 

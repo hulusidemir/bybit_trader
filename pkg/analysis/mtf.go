@@ -120,36 +120,32 @@ func checkOBSupport(metrics map[string]*models.TimeframeMetrics, dir models.Sign
 
 func checkCVDConfirmation(metrics map[string]*models.TimeframeMetrics, dir models.SignalDirection) bool {
 	perpConfirm := false
-	spotConfirm := false
-	noCVDData := true
+	hasPerpData := false
 
 	for _, m := range metrics {
-		if m.PerpCVD != 0 || m.SpotCVD != 0 {
-			noCVDData = false
+		if m.PerpCVD != 0 {
+			hasPerpData = true
 		}
 
 		if dir == models.DirectionLong {
+			// Require actual bullish perp CVD trend (not neutral)
 			if m.PerpCVDTrend >= models.TrendUp {
 				perpConfirm = true
 			}
-			if m.SpotCVDTrend >= models.TrendNeutral {
-				spotConfirm = true
-			}
 		} else {
+			// Require actual bearish perp CVD trend (not neutral)
 			if m.PerpCVDTrend <= models.TrendDown {
 				perpConfirm = true
-			}
-			if m.SpotCVDTrend <= models.TrendNeutral {
-				spotConfirm = true
 			}
 		}
 	}
 
-	if noCVDData {
-		return true
+	// No perp CVD data at all → cannot confirm direction
+	if !hasPerpData {
+		return false
 	}
 
-	return perpConfirm && spotConfirm
+	return perpConfirm
 }
 
 func calcConfluenceScore(

@@ -100,21 +100,34 @@ func (e *EventEngine) applyTick(s *models.SymbolState, evt models.MarketEvent) {
 	if !ok {
 		return
 	}
-	s.LastPrice = p.LastPrice
-	s.Volume24h = p.Volume24h
-	s.Turnover24h = p.Turnover24h
-	s.FundingRate = p.FundingRate
+	// ── Delta-safe updates ─────────────────────────────
+	// Bybit V5 ticker WS sends delta payloads with ONLY changed fields.
+	// Missing fields parse to 0.0. Never overwrite valid state with zeros.
+	if p.LastPrice > 0 {
+		s.LastPrice = p.LastPrice
+	}
+	if p.Volume24h > 0 {
+		s.Volume24h = p.Volume24h
+	}
+	if p.Turnover24h > 0 {
+		s.Turnover24h = p.Turnover24h
+	}
+	if p.FundingRate != 0 {
+		s.FundingRate = p.FundingRate
+	}
 	if p.OpenInterest > 0 {
 		s.OI[evt.Exchange] = p.OpenInterest
 		e.recordOISnapshot(s, evt.Timestamp)
 	}
 	// Track price ticks for absorption detection
-	s.PriceTicks = append(s.PriceTicks, models.PriceTick{
-		Timestamp: evt.Timestamp,
-		Price:     p.LastPrice,
-	})
-	if len(s.PriceTicks) > models.MaxPriceTicks {
-		s.PriceTicks = s.PriceTicks[len(s.PriceTicks)-models.MaxPriceTicks:]
+	if p.LastPrice > 0 {
+		s.PriceTicks = append(s.PriceTicks, models.PriceTick{
+			Timestamp: evt.Timestamp,
+			Price:     p.LastPrice,
+		})
+		if len(s.PriceTicks) > models.MaxPriceTicks {
+			s.PriceTicks = s.PriceTicks[len(s.PriceTicks)-models.MaxPriceTicks:]
+		}
 	}
 }
 
@@ -316,9 +329,20 @@ func (e *EventEngine) synthesize(s *models.SymbolState) *models.CoinAnalysis {
 		for _, oi := range s.OI {
 			totalOI += oi
 		}
-		if totalOI > 0 {
-			metrics.OIChange = 0 // OI change requires history; set from OI events with ChangePct
-			metrics.OITrend = models.TrendNeutral
+		if totalOI > 0 && len(s.OIHistory) >= 10 {
+			// Compute OI change % from rolling history (old → recent)
+			oldOI := s.OIHistory[0].TotalOI
+			recentOI := s.OIHistory[len(s.OIHistory)-1].TotalOI
+			if oldOI > 0 {
+				metrics.OIChange = (recentOI - oldOI) / oldOI * 100
+				if metrics.OIChange > 1.0 {
+					metrics.OITrend = models.TrendUp // OI building
+				} else if metrics.OIChange < -1.0 {
+					metrics.OITrend = models.TrendDown // OI flushing
+				} else {
+					metrics.OITrend = models.TrendNeutral
+				}
+			}
 		}
 
 		// ═══ PHASE 3: CVD (sum across exchanges) ═══
