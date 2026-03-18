@@ -161,11 +161,37 @@ func (m *Monitor) checkActiveTrades() {
 		if err != nil {
 			log.Printf("[Monitor] Warning: could not check position for %s: %v", trade.Symbol, err)
 		} else if posSize == 0 {
-			log.Printf("[Monitor] ⚠️ Position vanished: %s — closing in DB (manual close or liquidation)", trade.Symbol)
-			// Cancel any open TP orders
-			m.exec.CancelAllOrders(trade.Symbol)
-			m.closeTradeInDB(trade, currentPrice, models.TradeStopped)
-			m.tgBot.SendMessage(fmt.Sprintf("⚠️ *POZİSYON KAPANDI* — %s\n\nBorsada pozisyon bulunamadı (elle kapatma veya likidasyon). İşlem DB'de kapatıldı.\nÇıkış Fiyatı: %.4f", trade.Symbol, currentPrice))
+			// Position is gone — check if a TP order was filled (bot's own close)
+			tpClosed := false
+			if trade.TP1OrderID != "" && trade.TPPhase == models.TPPhaseWaitingTP1 {
+				filled, _, _, ferr := m.exec.CheckOrderFilled(trade.Symbol, trade.TP1OrderID)
+				if ferr == nil && filled {
+					log.Printf("[Monitor] 🎯 TP1 filled (detected via position sync): %s", trade.Symbol)
+					m.closeTradeInDB(trade, trade.TP1, models.TradeTP1)
+					tpClosed = true
+				}
+			} else if trade.TP2OrderID != "" && trade.TPPhase == models.TPPhaseWaitingTP2 {
+				filled, _, _, ferr := m.exec.CheckOrderFilled(trade.Symbol, trade.TP2OrderID)
+				if ferr == nil && filled {
+					log.Printf("[Monitor] 🎯 TP2 filled (detected via position sync): %s", trade.Symbol)
+					m.closeTradeInDB(trade, trade.TP2, models.TradeTP2)
+					tpClosed = true
+				}
+			} else if trade.TP3OrderID != "" && trade.TPPhase == models.TPPhaseWaitingTP3 {
+				filled, _, _, ferr := m.exec.CheckOrderFilled(trade.Symbol, trade.TP3OrderID)
+				if ferr == nil && filled {
+					log.Printf("[Monitor] 🏆 TP3 filled (detected via position sync): %s", trade.Symbol)
+					m.closeTradeInDB(trade, trade.TP3, models.TradeTP3)
+					tpClosed = true
+				}
+			}
+
+			if !tpClosed {
+				log.Printf("[Monitor] ⚠️ Position vanished: %s — external close (manual or liquidation)", trade.Symbol)
+				m.exec.CancelAllOrders(trade.Symbol)
+				m.closeTradeInDB(trade, currentPrice, models.TradeStopped)
+				m.tgBot.SendMessage(fmt.Sprintf("⚠️ *POZİSYON KAPANDI* — %s\n\nBorsada pozisyon bulunamadı (elle kapatma veya likidasyon).\nÇıkış Fiyatı: %.4f", trade.Symbol, currentPrice))
+			}
 			continue
 		}
 

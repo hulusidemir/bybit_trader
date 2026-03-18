@@ -92,12 +92,14 @@ func (e *Engine) AnalyzeCoin(coin *models.Coin) *models.CoinAnalysis {
 		// ── Aggregated Orderbook ─────────────────────────
 		e.applyAggregatedOrderbook(metrics, orderbooks)
 
-		// ── ATR from Bybit klines (primary exchange) ─────
-		klines, err := e.bybit.FetchKline(coin.Symbol, klineIntervals[tf], 15)
+		// ── ATR + Price Trend from Bybit klines (primary exchange) ─────
+		klines, err := e.bybit.FetchKline(coin.Symbol, klineIntervals[tf], 30)
 		if err != nil {
 			log.Printf("[%s][%s] kline fetch error: %v", coin.Symbol, tf, err)
 		} else {
 			metrics.ATR = calcATR(klines, 14)
+			metrics.PriceTrend = calcPriceTrend(klines)
+			metrics.PriceRangePos = calcPriceRangePos(klines, coin.LastPrice)
 		}
 
 		// ── Aggregated Long/Short Ratio ──────────────────
@@ -337,4 +339,79 @@ func findWall(levels []models.OrderbookLevel) (price, size float64) {
 		}
 	}
 	return
+}
+
+// calcPriceTrend determines price direction from recent candles.
+// Compares the average close of last 3 candles vs the previous 3.
+func calcPriceTrend(candles []models.OHLCV) models.Trend {
+	if len(candles) < 6 {
+		return models.TrendNeutral
+	}
+
+	// Recent 3 candles average close
+	recentSum := 0.0
+	for i := len(candles) - 3; i < len(candles); i++ {
+		recentSum += candles[i].Close
+	}
+	recentAvg := recentSum / 3.0
+
+	// Previous 3 candles average close
+	prevSum := 0.0
+	for i := len(candles) - 6; i < len(candles)-3; i++ {
+		prevSum += candles[i].Close
+	}
+	prevAvg := prevSum / 3.0
+
+	if prevAvg == 0 {
+		return models.TrendNeutral
+	}
+
+	changePct := (recentAvg - prevAvg) / prevAvg * 100
+
+	if changePct > 0.5 {
+		return models.TrendStrongUp
+	}
+	if changePct > 0.15 {
+		return models.TrendUp
+	}
+	if changePct < -0.5 {
+		return models.TrendStrongDown
+	}
+	if changePct < -0.15 {
+		return models.TrendDown
+	}
+	return models.TrendNeutral
+}
+
+// calcPriceRangePos calculates where current price sits within recent high-low range.
+// Returns 0-100: 0 = at the bottom, 100 = at the top.
+func calcPriceRangePos(candles []models.OHLCV, currentPrice float64) float64 {
+	if len(candles) < 2 || currentPrice == 0 {
+		return 50 // unknown = assume middle
+	}
+
+	highest := 0.0
+	lowest := math.MaxFloat64
+	for _, c := range candles {
+		if c.High > highest {
+			highest = c.High
+		}
+		if c.Low < lowest {
+			lowest = c.Low
+		}
+	}
+
+	rangeSize := highest - lowest
+	if rangeSize == 0 {
+		return 50
+	}
+
+	pos := (currentPrice - lowest) / rangeSize * 100
+	if pos < 0 {
+		pos = 0
+	}
+	if pos > 100 {
+		pos = 100
+	}
+	return pos
 }

@@ -164,6 +164,8 @@ type TimeframeMetrics struct {
 	NextFundingTime  int64
 	FundingInterval  int
 	ATR              float64 // Average True Range (14-period)
+	PriceTrend       Trend   // price direction from recent candles
+	PriceRangePos    float64 // 0-100: position within recent high-low range (0=bottom, 100=top)
 }
 
 type CoinAnalysis struct {

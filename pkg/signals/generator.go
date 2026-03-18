@@ -85,10 +85,70 @@ func GenerateSignals(mtfResults []analysis.MTFResult, tpCfg TPConfig) []*models.
 			continue
 		}
 
+		// ══════════════════════════════════════════════════
+		// QUALITY GATE 5: Price trend must confirm direction
+		// Fiyat trendi sinyal yönüyle aynı olmalı.
+		// LONG için fiyat yukarı gidiyor olmalı, SHORT için aşağı.
+		// ══════════════════════════════════════════════════
+		if !checkPriceTrendConfirm(r, sig.Direction) {
+			continue
+		}
+
+		// ══════════════════════════════════════════════════
+		// QUALITY GATE 6: Price range position filter
+		// Tepede LONG açma, dipte SHORT açma.
+		// LONG: fiyat aralığın üst %75'inde olmamalı
+		// SHORT: fiyat aralığın alt %25'inde olmamalı
+		// ══════════════════════════════════════════════════
+		if !checkPriceRangeFilter(r, sig.Direction) {
+			continue
+		}
+
 		signals = append(signals, sig)
 	}
 
 	return signals
+}
+
+// checkPriceTrendConfirm ensures both 5m AND 15m show price moving in signal direction.
+// Scalper needs short-term momentum confirmation from both low timeframes.
+func checkPriceTrendConfirm(r analysis.MTFResult, dir models.SignalDirection) bool {
+	m5, has5 := r.Metrics["5"]
+	m15, has15 := r.Metrics["15"]
+
+	// Both 5m and 15m must exist and confirm
+	if !has5 || !has15 {
+		return false
+	}
+
+	if dir == models.DirectionLong {
+		return m5.PriceTrend >= models.TrendUp && m15.PriceTrend >= models.TrendUp
+	}
+	return m5.PriceTrend <= models.TrendDown && m15.PriceTrend <= models.TrendDown
+}
+
+// checkPriceRangeFilter prevents buying at top and shorting at bottom.
+// Uses 15m timeframe for range context (~7.5 hours with 30 candles).
+func checkPriceRangeFilter(r analysis.MTFResult, dir models.SignalDirection) bool {
+	// Primary: 15m range (30 candles = 7.5h context)
+	// Fallback: 60m if 15m unavailable
+	var m *models.TimeframeMetrics
+	if m15, ok := r.Metrics["15"]; ok && m15.PriceRangePos != 50 {
+		m = m15
+	} else if m60, ok := r.Metrics["60"]; ok && m60.PriceRangePos != 50 {
+		m = m60
+	}
+	if m == nil {
+		return true // no range data = allow
+	}
+
+	if dir == models.DirectionLong && m.PriceRangePos > 80 {
+		return false // fiyat zaten tepede — LONG açma
+	}
+	if dir == models.DirectionShort && m.PriceRangePos < 20 {
+		return false // fiyat zaten dipte — SHORT açma
+	}
+	return true
 }
 
 func buildSignal(r analysis.MTFResult, tpCfg TPConfig) *models.Signal {
