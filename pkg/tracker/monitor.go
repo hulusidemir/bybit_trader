@@ -276,6 +276,19 @@ func (m *Monitor) handlePositionUpdate(p models.PositionUpdatePayload) {
 		return // no active trade for this symbol
 	}
 
+	// ── Hedge Mode Side Filter ──────────────────────────────
+	// In hedge mode, Bybit sends separate position updates for Buy (Long)
+	// and Sell (Short) sides. Opening a SHORT also fires a size=0 update
+	// for the Buy side. Without this guard the bot sees size=0 on the
+	// wrong side and kills the active trade ("Ghost Update" bug).
+	expectedSide := "Buy"
+	if trade.Direction == models.DirectionShort {
+		expectedSide = "Sell"
+	}
+	if p.Side != "" && p.Side != expectedSide {
+		return // wrong side for this trade — hedge mode ghost update, ignore
+	}
+
 	// Position vanished (size=0) → external close or liquidation
 	// CRITICAL: Ignore size=0 for PENDING trades! Bybit sends PositionUpdate
 	// with size=0 before a limit order fills. Treating this as "vanished"

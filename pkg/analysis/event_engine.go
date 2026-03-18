@@ -1,7 +1,6 @@
 package analysis
 
 import (
-	"log"
 	"math"
 	"sync"
 	"time"
@@ -273,8 +272,6 @@ func (e *EventEngine) evaluate(symbol string) []MTFResult {
 	// Update cooldown
 	e.lastEval[symbol] = time.Now()
 
-	log.Printf("[EventEngine] %s: %d MTF results (OrderFlow: %s)",
-		symbol, len(mtfResults), ofs.String())
 	return mtfResults
 }
 

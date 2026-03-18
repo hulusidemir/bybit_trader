@@ -7,7 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23000000'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='36' fill='%2300ff41'%3E⚡%3C/text%3E%3C/svg%3E">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
     tailwind.config = {
@@ -725,6 +725,7 @@ function getEquityData(){
 }
 
 function drawEquityChart(containerId, isLarge){
+  try {
     const container = document.getElementById(containerId);
     if(!container) return;
 
@@ -773,12 +774,12 @@ function drawEquityChart(containerId, isLarge){
 
     const lastVal = data[data.length-1]?.value || 0;
     const lineColor = lastVal >= 0 ? '#00ff41' : '#ff3366';
-    const topColor = lastVal >= 0 ? 'rgba(0,255,65,0.15)' : 'rgba(255,51,102,0.12)';
+    const topColor = lastVal >= 0 ? 'rgba(0,255,65,0.4)' : 'rgba(255,51,102,0.25)';
 
     const series = chart.addAreaSeries({
         lineColor: lineColor,
         topColor: topColor,
-        bottomColor: 'transparent',
+        bottomColor: 'rgba(0,255,65,0.0)',
         lineWidth: 2,
         crosshairMarkerVisible: true,
         crosshairMarkerRadius: 4,
@@ -794,6 +795,9 @@ function drawEquityChart(containerId, isLarge){
 
     if(containerId === 'equity-chart') { equityChart = chart; equitySeries = series; }
     else { equityChartLg = chart; equitySeriesLg = series; }
+  } catch(e) {
+    console.error('[Grafik Çizim Hatası]', e.message || e);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
