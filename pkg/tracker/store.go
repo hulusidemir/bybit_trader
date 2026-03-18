@@ -332,6 +332,7 @@ func (s *Store) GetStats() (*models.TradeStats, error) {
 
 		if t.Status == models.TradeActive {
 			stats.ActiveTrades++
+			stats.TotalMargin += t.MarginUsed
 			continue
 		}
 

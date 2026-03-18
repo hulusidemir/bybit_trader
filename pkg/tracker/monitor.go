@@ -156,6 +156,19 @@ func (m *Monitor) checkActiveTrades() {
 			continue
 		}
 
+		// Check if position still exists on exchange (manual close / liquidation detection)
+		posSize, err := m.exec.GetPositionSize(trade.Symbol)
+		if err != nil {
+			log.Printf("[Monitor] Warning: could not check position for %s: %v", trade.Symbol, err)
+		} else if posSize == 0 {
+			log.Printf("[Monitor] ⚠️ Position vanished: %s — closing in DB (manual close or liquidation)", trade.Symbol)
+			// Cancel any open TP orders
+			m.exec.CancelAllOrders(trade.Symbol)
+			m.closeTradeInDB(trade, currentPrice, models.TradeStopped)
+			m.tgBot.SendMessage(fmt.Sprintf("⚠️ *POZİSYON KAPANDI* — %s\n\nBorsada pozisyon bulunamadı (elle kapatma veya likidasyon). İşlem DB'de kapatıldı.\nÇıkış Fiyatı: %.4f", trade.Symbol, currentPrice))
+			continue
+		}
+
 		// Update current price in DB
 		m.store.UpdateCurrentPrice(trade.ID, currentPrice)
 
@@ -202,36 +215,9 @@ func (m *Monitor) checkTPOrders(trade *models.Trade, currentPrice float64) {
 			return // still waiting
 		}
 
-		// TP1 filled!
-		log.Printf("[Monitor] 🎯 TP1 limit order filled: %s qty=%.6f", trade.Symbol, filledQty)
-
-		newRemaining := trade.RemainingQty - filledQty
-		if newRemaining < 0 {
-			newRemaining = 0
-		}
-		m.store.UpdateRemainingQty(trade.ID, newRemaining)
-		m.store.UpdateTradeStatus(trade.ID, models.TradeTP1)
-
-		trade.RemainingQty = newRemaining
-		trade.Status = models.TradeTP1
-		trade.CurrentPrice = currentPrice
-
-		msg := signals.FormatTPHit(trade, "TP1_HIT", currentPrice, filledQty, 0.50)
-		m.tgBot.SendMessage(msg)
-
-		// Move stop loss to entry price (breakeven)
-		if err := m.exec.SetTradingStop(trade.Symbol, trade.Direction, trade.AvgEntryPrice); err != nil {
-			log.Printf("[Monitor] Error setting SL to breakeven for %s: %v", trade.Symbol, err)
-			m.tgBot.SendMessage(fmt.Sprintf("⚠️ *SL HATASI* — %s\n\nStop loss giriş fiyatına çekilemedi\n```%v```", trade.Symbol, err))
-		} else {
-			m.store.UpdateStopLoss(trade.ID, trade.AvgEntryPrice)
-			m.store.MarkStopMoved(trade.ID, "TP1", time.Now())
-			stopMsg := signals.FormatStopMoved(trade, "TP1 → Giriş (Breakeven)", trade.AvgEntryPrice)
-			m.tgBot.SendMessage(stopMsg)
-		}
-
-		// Place TP2 limit order (50% of remaining)
-		m.placeNextTPOrder(trade, models.TPPhaseWaitingTP2)
+		// TP1 filled — full close! (100% of position closed at TP1)
+		log.Printf("[Monitor] 🎯 TP1 limit order filled: %s qty=%.6f — position fully closed", trade.Symbol, filledQty)
+		m.closeTradeInDB(trade, trade.TP1, models.TradeTP1)
 
 	case models.TPPhaseWaitingTP2:
 		if trade.TP2OrderID == "" {
@@ -314,7 +300,7 @@ func (m *Monitor) placeNextTPOrder(trade *models.Trade, phase models.TPPhase) {
 	switch phase {
 	case models.TPPhaseWaitingTP1:
 		tpPrice = trade.TP1
-		fraction = 0.50 // 50% of total position
+		fraction = 1.0 // 100% of total position — full close at TP1
 	case models.TPPhaseWaitingTP2:
 		tpPrice = trade.TP2
 		fraction = 0.50 // 50% of remaining

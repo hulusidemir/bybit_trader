@@ -16,9 +16,9 @@ type PatternDef struct {
 var AllPatterns = []PatternDef{
 	{
 		Name:      models.PatternStealthAccumulation,
-		Direction: models.DirectionShort,
-		Description: "Spot birik im + perp hedge + bid wall: piyasa tek yönlü bullish. " +
-			"Aşırı iyimserlik tükenme noktasına işaret eder — büyük oyuncular çıkış likiditesi oluşturuyor.",
+		Direction: models.DirectionLong,
+		Description: "Spot birikim + perp hedge + bid wall: piyasa tek yönlü bullish. " +
+			"Trend takip — güçlü alım baskısı momentum devam sinyali.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend >= models.TrendUp &&
 				m.PerpCVDTrend <= models.TrendDown &&
@@ -28,9 +28,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternAggressiveDistro,
-		Direction: models.DirectionLong,
-		Description: "Perp alım + spot satış + ask wall: dağıtım gibi görünüyor. " +
-			"Ancak bu yapı genellikle geçici — satış baskısı tükendiğinde sert yukarı dönüş.",
+		Direction: models.DirectionShort,
+		Description: "Perp alım + spot satış + ask wall: dağıtım devam ediyor. " +
+			"Trend takip — spot satış baskısı aşağı yönlü momentum sinyali.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend >= models.TrendUp &&
 				m.PerpCVDTrend >= models.TrendUp &&
@@ -40,9 +40,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternWhaleSqueezeSetup,
-		Direction: models.DirectionShort,
-		Description: "OI çok yüksek, perp CVD çok negatif, ask tarafı ince: herkes squeeze bekliyor. " +
-			"Kalabalık aynı yönde beklediğinde genellikle tersi gerçekleşir.",
+		Direction: models.DirectionLong,
+		Description: "OI çok yüksek, perp CVD çok negatif, ask tarafı ince. " +
+			"Trend takip — squeeze tetiklendiğinde sert yukarı hareket beklenir.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend >= models.TrendStrongUp &&
 				m.PerpCVDTrend <= models.TrendStrongDown &&
@@ -52,9 +52,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternCapitulationReversal,
-		Direction: models.DirectionShort,
-		Description: "OI düşüyor, spot alım var, bid wall güçlü: 'dip toplama' modu. " +
-			"Erken alıcılar genellikle tuzağa düşer — kapitülasyon henüz bitmemiş olabilir.",
+		Direction: models.DirectionLong,
+		Description: "OI düşüyor, spot alım var, bid wall güçlü: dip toplama modu. " +
+			"Trend takip — spot alım baskısı ve bid wall yukarı destek sinyali.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend <= models.TrendStrongDown &&
 				m.PerpCVDTrend <= models.TrendDown &&
@@ -64,9 +64,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternSmartMoneyShort,
-		Direction: models.DirectionLong,
+		Direction: models.DirectionShort,
 		Description: "OI artıyor, spot'ta agresif satış, ask wall baskın. " +
-			"Short kalabalığı aşırı büyüdüğünde sıkıştırma riski artar.",
+			"Trend takip — güçlü satış baskısı aşağı yönlü momentum devam sinyali.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend >= models.TrendUp &&
 				m.PerpCVDTrend == models.TrendNeutral &&
@@ -77,9 +77,9 @@ var AllPatterns = []PatternDef{
 
 	{
 		Name:      models.PatternSilentDistribution,
-		Direction: models.DirectionLong,
+		Direction: models.DirectionShort,
 		Description: "OI sabit, perp alım var, spot satış devam ediyor. " +
-			"Sessiz dağıtım gibi görünüyor ama perp alım baskısı fiyatı yukarı itecek güç biriktiriyor.",
+			"Trend takip — spot satış baskısı devam ediyor, aşağı yönlü momentum.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend == models.TrendNeutral &&
 				m.PerpCVDTrend >= models.TrendUp &&
@@ -89,9 +89,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternDivergentStrength,
-		Direction: models.DirectionShort,
+		Direction: models.DirectionLong,
 		Description: "Tüm metrikler bullish: OI↑, Perp↑, Spot↑, Bid wall. " +
-			"Herkes aynı yönde — tek yönlü konsensüs tükenme noktasına işaret eder.",
+			"Trend takip — tüm göstergeler yukarı yönlü, güçlü momentum.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend >= models.TrendUp &&
 				m.PerpCVDTrend >= models.TrendUp &&
@@ -101,9 +101,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternBearishConvergence,
-		Direction: models.DirectionLong,
+		Direction: models.DirectionShort,
 		Description: "OI artıyor, perp ve spot CVD negatif, ask wall baskın. " +
-			"Aşırı bearish konsensüs genellikle dip oluşumu sinyalidir — kalabalığın tersine pozisyon.",
+			"Trend takip — tüm göstergeler aşağı yönlü, satış momentum devam ediyor.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend >= models.TrendUp &&
 				m.PerpCVDTrend <= models.TrendDown &&
@@ -114,9 +114,9 @@ var AllPatterns = []PatternDef{
 
 	{
 		Name:      models.PatternLiqCascadeShort,
-		Direction: models.DirectionLong,
+		Direction: models.DirectionShort,
 		Description: "OI hızla düşüyor, perp ve spot CVD çok negatif, ask wall baskın. " +
-			"Tasfiye kaskadı — agresif satış tükendiğinde sert toparlanma gelir.",
+			"Trend takip — tasfiye kaskadı devam ediyor, aşağı momentum güçlü.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend <= models.TrendStrongDown &&
 				m.PerpCVDTrend <= models.TrendStrongDown &&
@@ -126,9 +126,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternLiqCascadeLong,
-		Direction: models.DirectionShort,
+		Direction: models.DirectionLong,
 		Description: "OI düşüyor, perp CVD çok pozitif, spot alım var. " +
-			"Short squeeze devam ediyor — ancak squeeze tükendiğinde sert geri çekilme beklentisi.",
+			"Trend takip — squeeze devam ediyor, yukarı momentum güçlü.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend <= models.TrendStrongDown &&
 				m.PerpCVDTrend >= models.TrendStrongUp &&
@@ -138,9 +138,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternAbsorption,
-		Direction: models.DirectionShort,
+		Direction: models.DirectionLong,
 		Description: "OI sabit, perp CVD pozitif, devasa bid wall. " +
-			"Satış emiliyor gibi görünüyor ama bid wall kırıldığında likidite kaskadı tetiklenebilir.",
+			"Trend takip — alım emilimi devam ediyor, yukarı yönlü destek güçlü.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend == models.TrendNeutral &&
 				m.PerpCVDTrend >= models.TrendUp &&
@@ -150,9 +150,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternHiddenSelling,
-		Direction: models.DirectionLong,
+		Direction: models.DirectionShort,
 		Description: "OI sabit, perp CVD negatif, devasa ask wall. " +
-			"Alım emiliyor gibi görünüyor ama ask wall kırıldığında short squeeze tetiklenebilir.",
+			"Trend takip — satış baskısı devam ediyor, aşağı yönlü momentum.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend == models.TrendNeutral &&
 				m.PerpCVDTrend <= models.TrendDown &&
@@ -162,9 +162,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternExhaustionTop,
-		Direction: models.DirectionLong,
-		Description: "OI düşerken perp CVD pozitif: 'son nefes pompası' gibi görünüyor. " +
-			"Ancak pozisyon kapanırken bile alım baskısı var — momentum devam edebilir.",
+		Direction: models.DirectionShort,
+		Description: "OI düşerken perp CVD pozitif: son nefes pompası. " +
+			"Trend takip — OI düşerken alım baskısı tükeniyor, aşağı dönüş beklenir.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend <= models.TrendDown &&
 				m.PerpCVDTrend >= models.TrendUp &&
@@ -173,9 +173,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      models.PatternExhaustionBottom,
-		Direction: models.DirectionShort,
-		Description: "OI düşerken spot CVD pozitif, bid wall güçlü: 'dip toplama' modu. " +
-			"Erken alıcılar genellikle tuzağa düşer — düşüş devam edebilir.",
+		Direction: models.DirectionLong,
+		Description: "OI düşerken spot CVD pozitif, bid wall güçlü: dip toplama modu. " +
+			"Trend takip — spot alım ve bid wall desteği yukarı dönüş sinyali.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.OITrend <= models.TrendDown &&
 				m.PerpCVDTrend <= models.TrendDown &&
@@ -189,9 +189,9 @@ var AllPatterns = []PatternDef{
 	// by compensating for the lack of CVD with stronger OI and OB requirements.
 	{
 		Name:      "Pure Bybit Momentum Long",
-		Direction: models.DirectionShort,
+		Direction: models.DirectionLong,
 		Description: "Sadece Bybit: Güçlü OI artışı + devasa Bid wall. " +
-			"Piyasa tek yönlü bullish — aşırı iyimserlik tükenme sinyali.",
+			"Trend takip — güçlü alım baskısı, yukarı momentum devam ediyor.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.SpotCVD == 0 && m.PerpCVD == 0 && // Only trigger if Binance data is missing
 				m.OITrend >= models.TrendStrongUp &&
@@ -200,9 +200,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      "Pure Bybit Momentum Short",
-		Direction: models.DirectionLong,
+		Direction: models.DirectionShort,
 		Description: "Sadece Bybit: Güçlü OI artışı + devasa Ask wall. " +
-			"Piyasa tek yönlü bearish — aşırı kötümserlik dönüş sinyali.",
+			"Trend takip — güçlü satış baskısı, aşağı momentum devam ediyor.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.SpotCVD == 0 && m.PerpCVD == 0 && // Only trigger if Binance data is missing
 				m.OITrend >= models.TrendStrongUp &&
@@ -211,9 +211,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      "Pure Bybit Funding Exhaustion",
-		Direction: models.DirectionShort,
+		Direction: models.DirectionLong,
 		Description: "Sadece Bybit: Aşırı negatif funding + bid wall güçlü. " +
-			"Herkes squeeze bekliyor — kalabalığın beklentisi genellikle yanlış çıkar.",
+			"Trend takip — negatif funding short baskısını gösteriyor, squeeze potansiyeli.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.SpotCVD == 0 && m.PerpCVD == 0 && // Only trigger if Binance data is missing
 				m.FundingRate < -0.001 &&
@@ -223,9 +223,9 @@ var AllPatterns = []PatternDef{
 	},
 	{
 		Name:      "Pure Bybit Funding Exhaustion Short",
-		Direction: models.DirectionLong,
+		Direction: models.DirectionShort,
 		Description: "Sadece Bybit: Aşırı pozitif funding + ask wall baskın. " +
-			"Herkes dump bekliyor — aşırı tek yönlü beklenti dönüş noktasına işaret eder.",
+			"Trend takip — pozitif funding long baskısını gösteriyor, düşüş potansiyeli.",
 		Match: func(m *models.TimeframeMetrics) bool {
 			return m.SpotCVD == 0 && m.PerpCVD == 0 && // Only trigger if Binance data is missing
 				m.FundingRate > 0.001 &&

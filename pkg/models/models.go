@@ -266,6 +266,7 @@ type TradeStats struct {
 	TP1Count       int
 	TP2Count       int
 	TP3Count       int
+	TotalMargin    float64
 
 	PatternStats   map[PatternName]*PatternStat
 }

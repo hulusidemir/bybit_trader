@@ -335,3 +335,118 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// FetchOpenInterestHistory returns historical open interest data from Binance futures.
+// period: 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
+func (c *Client) FetchOpenInterestHistory(symbol, period string, limit int) ([]models.OpenInterestPoint, error) {
+	body, err := c.doGet(futuresBaseURL, "/fapi/v1/openInterestHist", map[string]string{
+		"symbol": symbol,
+		"period": period,
+		"limit":  strconv.Itoa(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var resp []struct {
+		SumOpenInterest string `json:"sumOpenInterest"`
+		Timestamp       int64  `json:"timestamp"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal OI hist: %w", err)
+	}
+
+	points := make([]models.OpenInterestPoint, 0, len(resp))
+	for _, item := range resp {
+		oi, _ := strconv.ParseFloat(item.SumOpenInterest, 64)
+		points = append(points, models.OpenInterestPoint{
+			Timestamp:    item.Timestamp,
+			OpenInterest: oi,
+		})
+	}
+
+	return points, nil
+}
+
+// FetchFuturesOrderbook returns the futures orderbook depth from Binance.
+func (c *Client) FetchFuturesOrderbook(symbol string, limit int) (*models.OrderbookSnapshot, error) {
+	body, err := c.doGet(futuresBaseURL, "/fapi/v1/depth", map[string]string{
+		"symbol": symbol,
+		"limit":  strconv.Itoa(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var resp struct {
+		Bids [][]string `json:"bids"`
+		Asks [][]string `json:"asks"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal depth: %w", err)
+	}
+
+	ob := &models.OrderbookSnapshot{
+		Symbol: symbol,
+		Bids:   make([]models.OrderbookLevel, 0, len(resp.Bids)),
+		Asks:   make([]models.OrderbookLevel, 0, len(resp.Asks)),
+	}
+
+	for _, b := range resp.Bids {
+		if len(b) < 2 {
+			continue
+		}
+		price, _ := strconv.ParseFloat(b[0], 64)
+		size, _ := strconv.ParseFloat(b[1], 64)
+		ob.Bids = append(ob.Bids, models.OrderbookLevel{Price: price, Amount: size})
+	}
+	for _, a := range resp.Asks {
+		if len(a) < 2 {
+			continue
+		}
+		price, _ := strconv.ParseFloat(a[0], 64)
+		size, _ := strconv.ParseFloat(a[1], 64)
+		ob.Asks = append(ob.Asks, models.OrderbookLevel{Price: price, Amount: size})
+	}
+
+	return ob, nil
+}
+
+// FetchGlobalLSRatio returns global long/short account ratio from Binance futures.
+// period: 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
+func (c *Client) FetchGlobalLSRatio(symbol, period string, limit int) ([]models.LongShortRatio, error) {
+	body, err := c.doGet(futuresBaseURL, "/futures/data/globalLongShortAccountRatio", map[string]string{
+		"symbol": symbol,
+		"period": period,
+		"limit":  strconv.Itoa(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var resp []struct {
+		LongShortRatio string `json:"longShortRatio"`
+		LongAccount    string `json:"longAccount"`
+		ShortAccount   string `json:"shortAccount"`
+		Timestamp      int64  `json:"timestamp"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal LS ratio: %w", err)
+	}
+
+	result := make([]models.LongShortRatio, 0, len(resp))
+	for _, item := range resp {
+		ratio, _ := strconv.ParseFloat(item.LongShortRatio, 64)
+		buy, _ := strconv.ParseFloat(item.LongAccount, 64)
+		sell, _ := strconv.ParseFloat(item.ShortAccount, 64)
+
+		result = append(result, models.LongShortRatio{
+			Timestamp: item.Timestamp,
+			BuyRatio:  buy,
+			SellRatio: sell,
+			Ratio:     ratio,
+		})
+	}
+
+	return result, nil
+}

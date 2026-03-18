@@ -342,6 +342,17 @@ func (e *Executor) CancelOrder(symbol, orderID string) error {
 	return e.trade.CancelOrder(symbol, orderID)
 }
 
+// GetPositionSize returns the current position size on the exchange.
+// Returns 0 if no position exists (manually closed or liquidated).
+func (e *Executor) GetPositionSize(symbol string) (float64, error) {
+	pos, err := e.trade.GetPosition(symbol)
+	if err != nil {
+		return 0, err
+	}
+	size, _ := strconv.ParseFloat(pos.Size, 64)
+	return size, nil
+}
+
 // ── Helpers ────────────────────────────────────────────────
 
 // dcaPctForCoin returns the DCA threshold % for a symbol (override or default)

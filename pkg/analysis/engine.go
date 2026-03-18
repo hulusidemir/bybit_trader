@@ -3,42 +3,49 @@ package analysis
 import (
 	"log"
 	"math"
-	"strings"
+	"sync"
 
-	"bybit_trader/pkg/exchange/binance"
+	"bybit_trader/pkg/exchange"
 	"bybit_trader/pkg/exchange/bybit"
 	"bybit_trader/pkg/models"
 )
 
-// isInvalidSymbolErr checks if the error is a Binance invalid symbol error (-1121)
-func isInvalidSymbolErr(err error) bool {
-	return err != nil && (strings.Contains(err.Error(), "-1121") || strings.Contains(err.Error(), "Invalid symbol"))
-}
-
 type Engine struct {
-	bybit   *bybit.Client
-	binance *binance.Client
+	bybit     *bybit.Client
+	providers []exchange.DataProvider
 }
 
-func NewEngine(b *bybit.Client, bn *binance.Client) *Engine {
-	return &Engine{bybit: b, binance: bn}
+func NewEngine(b *bybit.Client, providers []exchange.DataProvider) *Engine {
+	return &Engine{bybit: b, providers: providers}
 }
 
-// timeframe mapping: analysis key -> bybit OI interval, bybit kline interval, binance period
-var timeframeMap = map[string]struct {
-	OIInterval     string // bybit OI
-	KlineInterval  string // bybit kline
-	BinancePeriod  string // binance taker vol / LS ratio
-	SpotKlineInt   string // binance spot kline
-	LSPeriod       string // bybit account ratio
-}{
-	"5":   {OIInterval: "5min", KlineInterval: "5", BinancePeriod: "5m", SpotKlineInt: "5m", LSPeriod: "5min"},
-	"15":  {OIInterval: "15min", KlineInterval: "15", BinancePeriod: "15m", SpotKlineInt: "15m", LSPeriod: "15min"},
-	"60":  {OIInterval: "1h", KlineInterval: "60", BinancePeriod: "1h", SpotKlineInt: "1h", LSPeriod: "1h"},
-	"240": {OIInterval: "4h", KlineInterval: "240", BinancePeriod: "4h", SpotKlineInt: "4h", LSPeriod: "4h"},
+// timeframes used for analysis
+var timeframes = []string{"5", "15", "60", "240"}
+
+// bybit kline intervals (same values as tfKey for bybit)
+var klineIntervals = map[string]string{
+	"5": "5", "15": "15", "60": "60", "240": "240",
 }
 
-// AnalyzeCoin performs full multi-timeframe analysis for a single coin
+// ── Aggregation types ───────────────────────────────────────
+
+type tfProviderData struct {
+	oi     []models.OpenInterestPoint
+	perpTV []models.TakerVolume
+	spotTV []models.TakerVolume
+	ls     []models.LongShortRatio
+}
+
+type aggregatedTFData struct {
+	oiSeries     [][]models.OpenInterestPoint
+	totalPerpCVD float64
+	perpCVDCount int
+	totalSpotCVD float64
+	spotCVDCount int
+	lsRatios     []float64
+}
+
+// AnalyzeCoin performs full multi-timeframe analysis using aggregated data from all providers
 func (e *Engine) AnalyzeCoin(coin *models.Coin) *models.CoinAnalysis {
 	analysis := &models.CoinAnalysis{
 		Symbol:      coin.Symbol,
@@ -48,14 +55,10 @@ func (e *Engine) AnalyzeCoin(coin *models.Coin) *models.CoinAnalysis {
 		FundingRate: coin.FundingRate,
 	}
 
-	// Fetch orderbook once (doesn't depend on timeframe)
-	ob, err := e.bybit.FetchOrderbook(coin.Symbol, 50)
-	if err != nil {
-		log.Printf("[%s] orderbook fetch error: %v", coin.Symbol, err)
-		ob = &models.OrderbookSnapshot{}
-	}
+	// Fetch orderbooks from all providers (once, in parallel)
+	orderbooks := e.fetchAllOrderbooks(coin.Symbol, 50)
 
-	for tf, mapping := range timeframeMap {
+	for _, tf := range timeframes {
 		metrics := &models.TimeframeMetrics{
 			Timeframe:       tf,
 			LastPrice:       coin.LastPrice,
@@ -65,75 +68,45 @@ func (e *Engine) AnalyzeCoin(coin *models.Coin) *models.CoinAnalysis {
 			FundingInterval: coin.FundingInterval,
 		}
 
-		// ── Open Interest ────────────────────────────────
-		oiData, err := e.bybit.FetchOpenInterest(coin.Symbol, mapping.OIInterval, 50)
-		if err != nil {
-			log.Printf("[%s][%s] OI fetch error: %v", coin.Symbol, tf, err)
-		} else {
-			metrics.OIChange = calcPercentChange(oiData)
+		// Fetch OI, CVD, LS from all providers in parallel
+		agg := e.fetchAllTFData(coin.Symbol, tf)
+
+		// ── Aggregated Open Interest ─────────────────────
+		if len(agg.oiSeries) > 0 {
+			metrics.OIChange = exchange.AggregateOIChange(agg.oiSeries)
 			metrics.OITrend = classifyTrend(metrics.OIChange, 2.0, 5.0)
 		}
 
-		// ── Perp CVD (from Binance futures kline taker volume) ──
-		futuresSymbol := binance.BybitToFuturesSymbol(coin.Symbol)
-		if binance.IsFuturesSymbolValid(futuresSymbol) {
-			takerVol, err := e.binance.FetchTakerBuySellVolume(futuresSymbol, mapping.BinancePeriod, 30)
-			if err != nil {
-				if isInvalidSymbolErr(err) {
-					binance.MarkFuturesInvalid(futuresSymbol)
-					log.Printf("[%s] Binance futures verisi yok -> Sadece Bybit verileriyle taranmaya devam ediliyor", coin.Symbol)
-				} else {
-					log.Printf("[%s][%s] perp taker vol fetch error: %v", coin.Symbol, tf, err)
-				}
-			} else {
-				metrics.PerpCVD = calcCVD(takerVol)
-				metrics.PerpCVDTrend = classifyCVDTrend(metrics.PerpCVD, coin.Turnover24h)
-			}
+		// ── Aggregated Perp CVD ──────────────────────────
+		if agg.perpCVDCount > 0 {
+			metrics.PerpCVD = agg.totalPerpCVD
+			metrics.PerpCVDTrend = classifyCVDTrend(metrics.PerpCVD, coin.Turnover24h)
 		}
 
-		// ── Spot CVD (from Binance spot kline taker volume) ────
-		spotSymbol := binance.BybitToSpotSymbol(coin.Symbol)
-		if binance.IsSpotSymbolValid(spotSymbol) {
-			spotTakerVol, err := e.binance.FetchSpotTakerVolume(spotSymbol, mapping.SpotKlineInt, 30)
-			if err != nil {
-				if isInvalidSymbolErr(err) {
-					binance.MarkSpotInvalid(spotSymbol)
-					log.Printf("[%s] Binance spot verisi yok -> Sadece Bybit verileriyle taranmaya devam ediliyor", coin.Symbol)
-				} else {
-					log.Printf("[%s][%s] spot taker vol fetch error: %v", coin.Symbol, tf, err)
-				}
-			} else {
-				metrics.SpotCVD = calcCVD(spotTakerVol)
-				metrics.SpotCVDTrend = classifyCVDTrend(metrics.SpotCVD, coin.Turnover24h)
-			}
+		// ── Aggregated Spot CVD ──────────────────────────
+		if agg.spotCVDCount > 0 {
+			metrics.SpotCVD = agg.totalSpotCVD
+			metrics.SpotCVDTrend = classifyCVDTrend(metrics.SpotCVD, coin.Turnover24h)
 		}
 
-		// ── Orderbook Analysis ───────────────────────────
-		if len(ob.Bids) > 0 && len(ob.Asks) > 0 {
-			metrics.OBImbalance = calcOBImbalance(ob)
-			metrics.OBBias = classifyOBBias(metrics.OBImbalance)
-			bidWallP, bidWallS := findWall(ob.Bids)
-			askWallP, askWallS := findWall(ob.Asks)
-			metrics.BidWallPrice = bidWallP
-			metrics.BidWallSize = bidWallS
-			metrics.AskWallPrice = askWallP
-			metrics.AskWallSize = askWallS
-		}
+		// ── Aggregated Orderbook ─────────────────────────
+		e.applyAggregatedOrderbook(metrics, orderbooks)
 
-		// ── ATR (14-period from Bybit klines) ────────────
-		klines, err := e.bybit.FetchKline(coin.Symbol, mapping.KlineInterval, 15)
+		// ── ATR from Bybit klines (primary exchange) ─────
+		klines, err := e.bybit.FetchKline(coin.Symbol, klineIntervals[tf], 15)
 		if err != nil {
 			log.Printf("[%s][%s] kline fetch error: %v", coin.Symbol, tf, err)
 		} else {
 			metrics.ATR = calcATR(klines, 14)
 		}
 
-		// ── Long/Short Ratio ─────────────────────────────
-		lsData, err := e.bybit.FetchLongShortRatio(coin.Symbol, mapping.LSPeriod, 10)
-		if err != nil {
-			log.Printf("[%s][%s] L/S ratio fetch error: %v", coin.Symbol, tf, err)
-		} else if len(lsData) > 0 {
-			metrics.LSRatio = lsData[len(lsData)-1].Ratio
+		// ── Aggregated Long/Short Ratio ──────────────────
+		if len(agg.lsRatios) > 0 {
+			sum := 0.0
+			for _, r := range agg.lsRatios {
+				sum += r
+			}
+			metrics.LSRatio = sum / float64(len(agg.lsRatios))
 		}
 
 		analysis.Metrics[tf] = metrics
@@ -142,19 +115,119 @@ func (e *Engine) AnalyzeCoin(coin *models.Coin) *models.CoinAnalysis {
 	return analysis
 }
 
-// ── Helper Functions ────────────────────────────────────────
+// fetchAllOrderbooks fetches orderbooks from all providers in parallel.
+func (e *Engine) fetchAllOrderbooks(symbol string, depth int) []*models.OrderbookSnapshot {
+	results := make([]*models.OrderbookSnapshot, len(e.providers))
+	var wg sync.WaitGroup
 
-func calcPercentChange(data []models.OpenInterestPoint) float64 {
-	if len(data) < 2 {
-		return 0
+	for i, p := range e.providers {
+		if !p.SupportsSymbol(symbol) {
+			continue
+		}
+		wg.Add(1)
+		go func(idx int, prov exchange.DataProvider) {
+			defer wg.Done()
+			ob, err := prov.FetchOrderbook(symbol, depth)
+			if err == nil && ob != nil {
+				results[idx] = ob
+			}
+		}(i, p)
 	}
-	first := data[0].OpenInterest
-	last := data[len(data)-1].OpenInterest
-	if first == 0 {
-		return 0
+	wg.Wait()
+
+	var obs []*models.OrderbookSnapshot
+	for _, ob := range results {
+		if ob != nil && (len(ob.Bids) > 0 || len(ob.Asks) > 0) {
+			obs = append(obs, ob)
+		}
 	}
-	return ((last - first) / first) * 100
+	return obs
 }
+
+// fetchAllTFData fetches OI, CVD, LS data from all providers for a given timeframe in parallel.
+func (e *Engine) fetchAllTFData(symbol, tfKey string) aggregatedTFData {
+	datas := make([]tfProviderData, len(e.providers))
+	var wg sync.WaitGroup
+
+	for i, p := range e.providers {
+		if !p.SupportsSymbol(symbol) {
+			continue
+		}
+		wg.Add(1)
+		go func(idx int, prov exchange.DataProvider) {
+			defer wg.Done()
+			var d tfProviderData
+			d.oi, _ = prov.FetchOI(symbol, tfKey, 50)
+			d.perpTV, _ = prov.FetchPerpTakerVolume(symbol, tfKey, 30)
+			d.spotTV, _ = prov.FetchSpotTakerVolume(symbol, tfKey, 30)
+			d.ls, _ = prov.FetchLSRatio(symbol, tfKey, 10)
+			datas[idx] = d
+		}(i, p)
+	}
+	wg.Wait()
+
+	var agg aggregatedTFData
+	for _, d := range datas {
+		if len(d.oi) > 0 {
+			agg.oiSeries = append(agg.oiSeries, d.oi)
+		}
+		if len(d.perpTV) > 0 {
+			agg.totalPerpCVD += calcCVD(d.perpTV)
+			agg.perpCVDCount++
+		}
+		if len(d.spotTV) > 0 {
+			agg.totalSpotCVD += calcCVD(d.spotTV)
+			agg.spotCVDCount++
+		}
+		if len(d.ls) > 0 {
+			agg.lsRatios = append(agg.lsRatios, d.ls[len(d.ls)-1].Ratio)
+		}
+	}
+
+	return agg
+}
+
+// applyAggregatedOrderbook merges orderbooks from all exchanges into metrics.
+func (e *Engine) applyAggregatedOrderbook(metrics *models.TimeframeMetrics, orderbooks []*models.OrderbookSnapshot) {
+	if len(orderbooks) == 0 {
+		return
+	}
+
+	totalBidVol := 0.0
+	totalAskVol := 0.0
+	maxBidWallVal := 0.0
+	maxAskWallVal := 0.0
+
+	for _, ob := range orderbooks {
+		for _, b := range ob.Bids {
+			totalBidVol += b.Amount * b.Price
+		}
+		for _, a := range ob.Asks {
+			totalAskVol += a.Amount * a.Price
+		}
+
+		bwP, bwS := findWall(ob.Bids)
+		if bwP*bwS > maxBidWallVal {
+			maxBidWallVal = bwP * bwS
+			metrics.BidWallPrice = bwP
+			metrics.BidWallSize = bwS
+		}
+
+		awP, awS := findWall(ob.Asks)
+		if awP*awS > maxAskWallVal {
+			maxAskWallVal = awP * awS
+			metrics.AskWallPrice = awP
+			metrics.AskWallSize = awS
+		}
+	}
+
+	if totalAskVol > 0 {
+		metrics.OBImbalance = totalBidVol / totalAskVol
+		metrics.OBBias = classifyOBBias(metrics.OBImbalance)
+	}
+}
+
+// ── Helper Functions ────────────────────────────────────────
 
 func classifyTrend(change, moderate, strong float64) models.Trend {
 	abs := math.Abs(change)
@@ -181,23 +254,6 @@ func calcCVD(data []models.TakerVolume) float64 {
 	return cvd
 }
 
-func calcSpotCVD(candles []models.OHLCV) float64 {
-	// Approximate: if close > open, volume is "buy"; else "sell"
-	// More accurate: use (close - low) / (high - low) * volume as buy proxy
-	cvd := 0.0
-	for _, c := range candles {
-		rng := c.High - c.Low
-		if rng == 0 {
-			continue
-		}
-		buyRatio := (c.Close - c.Low) / rng
-		buyVol := c.Volume * buyRatio
-		sellVol := c.Volume * (1 - buyRatio)
-		cvd += buyVol - sellVol
-	}
-	return cvd
-}
-
 func classifyCVDTrend(cvd, volume24h float64) models.Trend {
 	if volume24h == 0 {
 		return models.TrendNeutral
@@ -217,21 +273,6 @@ func classifyCVDTrend(cvd, volume24h float64) models.Trend {
 		return models.TrendStrongDown
 	}
 	return models.TrendDown
-}
-
-func calcOBImbalance(ob *models.OrderbookSnapshot) float64 {
-	bidVol := 0.0
-	askVol := 0.0
-	for _, b := range ob.Bids {
-		bidVol += b.Amount * b.Price
-	}
-	for _, a := range ob.Asks {
-		askVol += a.Amount * a.Price
-	}
-	if askVol == 0 {
-		return 999
-	}
-	return bidVol / askVol
 }
 
 func classifyOBBias(ratio float64) models.OrderbookBias {

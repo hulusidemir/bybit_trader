@@ -13,8 +13,11 @@ import (
 	"bybit_trader/pkg/analysis"
 	"bybit_trader/pkg/config"
 	"bybit_trader/pkg/dashboard"
+	"bybit_trader/pkg/exchange"
 	"bybit_trader/pkg/exchange/binance"
 	"bybit_trader/pkg/exchange/bybit"
+	"bybit_trader/pkg/exchange/coinbase"
+	"bybit_trader/pkg/exchange/okx"
 	"bybit_trader/pkg/executor"
 	"bybit_trader/pkg/models"
 	"bybit_trader/pkg/signals"
@@ -42,6 +45,8 @@ func main() {
 	// ── Initialize Clients ─────────────────────────────
 	bybitClient := bybit.NewClient()
 	binanceClient := binance.NewClient()
+	okxClient := okx.NewClient()
+	coinbaseClient := coinbase.NewClient()
 	tgBot := telegram.NewBot(cfg.TelegramBotToken, cfg.TelegramChatID)
 	defer func() {
 		if r := recover(); r != nil {
@@ -51,7 +56,16 @@ func main() {
 			panic(r)
 		}
 	}()
-	engine := analysis.NewEngine(bybitClient, binanceClient)
+
+	// Build aggregated data providers (Bybit + Binance + OKX + Coinbase)
+	providers := []exchange.DataProvider{
+		bybit.NewProvider(bybitClient),
+		binance.NewProvider(binanceClient),
+		okxClient,      // OKX client implements DataProvider directly
+		coinbaseClient, // Coinbase: spot orderbook depth
+	}
+	log.Printf("Data providers: %d exchanges (Bybit + Binance + OKX + Coinbase)", len(providers))
+	engine := analysis.NewEngine(bybitClient, providers)
 
 	// ── Initialize Trade Store ─────────────────────────
 	store, err := tracker.NewStore("trades.db")
@@ -210,8 +224,8 @@ func runScan(
 	log.Printf("Volume filter: %d/%d coins passed ($%.0f+ threshold)",
 		len(filtered), len(coins), cfg.MinVolume24H)
 
-	// Semaphore for concurrent analysis (limit to 5 parallel)
-	sem := make(chan struct{}, 5)
+	// Semaphore for concurrent analysis (limit to 3 parallel to respect API rate limits)
+	sem := make(chan struct{}, 3)
 	var wg sync.WaitGroup
 	var allSignals []*models.Signal
 	var signalMu sync.Mutex

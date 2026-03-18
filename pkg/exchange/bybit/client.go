@@ -14,7 +14,7 @@ import (
 
 const (
 	baseURL    = "https://api.bybit.com"
-	rateLimit  = 10 // requests per second
+	rateLimit  = 5 // requests per second (conservative to avoid 10006 errors)
 )
 
 type Client struct {
