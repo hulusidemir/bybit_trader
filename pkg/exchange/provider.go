@@ -49,7 +49,6 @@ type LegacyDataProvider interface {
 	FetchSpotTakerVolume(bybitSymbol, tfKey string, limit int) ([]models.TakerVolume, error)
 	FetchFuturesOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error)
 	FetchSpotOrderbook(bybitSymbol string, depth int) (*models.OrderbookSnapshot, error)
-	FetchLSRatio(bybitSymbol, tfKey string, limit int) ([]models.LongShortRatio, error)
 }
 
 // ════════════════════════════════════════════════════════════

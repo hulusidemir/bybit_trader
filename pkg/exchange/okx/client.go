@@ -317,47 +317,6 @@ func (c *Client) fetchOrderbook(instID string, depth int) (*models.OrderbookSnap
 	return ob, nil
 }
 
-func (c *Client) fetchLongShortRatio(ccy, period string) ([]models.LongShortRatio, error) {
-	data, err := c.doGet("/api/v5/rubik/stat/contracts/long-short-account-ratio", map[string]string{
-		"ccy":    ccy,
-		"period": period,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var rows [][]string
-	if err := json.Unmarshal(data, &rows); err != nil {
-		return nil, fmt.Errorf("unmarshal LS ratio: %w", err)
-	}
-
-	result := make([]models.LongShortRatio, 0, len(rows))
-	for i := len(rows) - 1; i >= 0; i-- {
-		row := rows[i]
-		if len(row) < 2 {
-			continue
-		}
-		ts, _ := strconv.ParseInt(row[0], 10, 64)
-		ratio, _ := strconv.ParseFloat(row[1], 64)
-
-		buy := 0.5
-		sell := 0.5
-		if ratio+1 > 0 {
-			buy = ratio / (ratio + 1)
-			sell = 1 - buy
-		}
-
-		result = append(result, models.LongShortRatio{
-			Timestamp: ts,
-			BuyRatio:  buy,
-			SellRatio: sell,
-			Ratio:     ratio,
-		})
-	}
-
-	return result, nil
-}
-
 // ── DataProvider Interface ──────────────────────────────────
 
 func (c *Client) Name() string { return "okx" }
@@ -408,12 +367,4 @@ func (c *Client) FetchSpotOrderbook(bybitSymbol string, depth int) (*models.Orde
 		return nil, nil
 	}
 	return c.fetchOrderbook(instID, depth)
-}
-
-func (c *Client) FetchLSRatio(bybitSymbol, tfKey string, limit int) ([]models.LongShortRatio, error) {
-	period, ok := okxPeriodMap[tfKey]
-	if !ok {
-		return nil, nil
-	}
-	return c.fetchLongShortRatio(bybitToCcy(bybitSymbol), period)
 }

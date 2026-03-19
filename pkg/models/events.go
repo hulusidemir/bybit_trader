@@ -13,7 +13,6 @@ const (
 	EventOIUpdate  EventType = "OI_UPDATE"
 	EventOBUpdate  EventType = "OB_UPDATE"
 	EventCVDUpdate EventType = "CVD_UPDATE"
-	EventKline     EventType = "KLINE"
 )
 
 // MarketEvent is the universal envelope for all exchange WebSocket data.
@@ -55,17 +54,6 @@ type CVDPayload struct {
 	NetDelta   float64 // BuyVolume - SellVolume (cumulative delta)
 }
 
-type KlinePayload struct {
-	Timeframe string // "5", "15", "60", "240"
-	Open      float64
-	High      float64
-	Low       float64
-	Close     float64
-	Volume    float64
-	Turnover  float64
-	Closed    bool // true = candle is finalized, false = still forming
-}
-
 // ── In-Memory Symbol State ──────────────────────────────────
 // Accumulated from MarketEvents. Lock-free reads via RWMutex.
 
@@ -88,9 +76,6 @@ type SymbolState struct {
 	// Per-exchange cumulative volume delta
 	PerpCVD map[string]float64 // key: exchange name
 	SpotCVD map[string]float64
-
-	// Rolling kline windows per timeframe (most recent N candles)
-	Klines map[string][]OHLCV // key: timeframe ("5","15","60","240")
 
 	// OrderFlow tracking state
 	OIHistory   []OISnapshot   // rolling OI snapshots for rate-of-change
@@ -115,12 +100,8 @@ func NewSymbolState(symbol string) *SymbolState {
 		OI:         make(map[string]float64),
 		PerpCVD:    make(map[string]float64),
 		SpotCVD:    make(map[string]float64),
-		Klines:     make(map[string][]OHLCV),
 	}
 }
-
-// MaxKlineWindow is the maximum number of candles kept per timeframe.
-const MaxKlineWindow = 50
 
 // OrderFlow tracking buffer sizes
 const (

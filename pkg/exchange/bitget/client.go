@@ -287,10 +287,6 @@ func (c *Client) FetchSpotOrderbook(bybitSymbol string, depth int) (*models.Orde
 	return c.parseOrderbook(data, sym)
 }
 
-func (c *Client) FetchLSRatio(_ string, _ string, _ int) ([]models.LongShortRatio, error) {
-	return nil, nil
-}
-
 // parseOrderbook parses Bitget's orderbook format: {"asks":[["price","size"]], "bids":[["price","size"]], "ts":"..."}
 func (c *Client) parseOrderbook(data json.RawMessage, symbol string) (*models.OrderbookSnapshot, error) {
 	var resp struct {

@@ -50,11 +50,3 @@ func (p *Provider) FetchFuturesOrderbook(bybitSymbol string, depth int) (*models
 func (p *Provider) FetchSpotOrderbook(_ string, _ int) (*models.OrderbookSnapshot, error) {
 	return nil, nil
 }
-
-func (p *Provider) FetchLSRatio(bybitSymbol, tfKey string, limit int) ([]models.LongShortRatio, error) {
-	period, ok := tfToBybitLSPeriod[tfKey]
-	if !ok {
-		return nil, nil
-	}
-	return p.client.FetchLongShortRatio(bybitSymbol, period, limit)
-}

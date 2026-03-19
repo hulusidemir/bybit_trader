@@ -119,22 +119,3 @@ func (p *Provider) FetchSpotOrderbook(bybitSymbol string, depth int) (*models.Or
 	}
 	return data, nil
 }
-
-func (p *Provider) FetchLSRatio(bybitSymbol, tfKey string, limit int) ([]models.LongShortRatio, error) {
-	period, ok := tfToBinancePeriod[tfKey]
-	if !ok {
-		return nil, nil
-	}
-	sym := BybitToFuturesSymbol(bybitSymbol)
-	if !IsFuturesSymbolValid(sym) {
-		return nil, nil
-	}
-	data, err := p.client.FetchGlobalLSRatio(sym, period, limit)
-	if err != nil {
-		if isInvalidSymbolErr(err) {
-			MarkFuturesInvalid(sym)
-		}
-		return nil, err
-	}
-	return data, nil
-}

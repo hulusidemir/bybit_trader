@@ -77,15 +77,6 @@ func FormatTelegramMessage(sig *models.Signal) string {
 
 	// Grade and extras
 	b.WriteString(fmt.Sprintf("⚡ *Sinyal Gücü:* %s (%d/100)\n", sig.Grade, sig.Confidence))
-	if sig.LSRatio > 0 {
-		lsDesc := "Dengeli"
-		if sig.LSRatio < 0.8 {
-			lsDesc = "Short ağırlıklı — squeeze potansiyeli"
-		} else if sig.LSRatio > 1.2 {
-			lsDesc = "Long ağırlıklı — dump riski"
-		}
-		b.WriteString(fmt.Sprintf("📊 *L/S Ratio:* %.2f (%s)\n", sig.LSRatio, lsDesc))
-	}
 	if sig.FundingRate != 0 {
 		b.WriteString(fmt.Sprintf("💸 *Funding Rate:* %.4f%%\n", sig.FundingRate*100))
 

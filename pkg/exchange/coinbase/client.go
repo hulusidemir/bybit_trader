@@ -245,11 +245,6 @@ func (c *Client) FetchSpotOrderbook(bybitSymbol string, depth int) (*models.Orde
 	return ob, nil
 }
 
-// FetchLSRatio returns nil — Coinbase has no futures L/S data.
-func (c *Client) FetchLSRatio(_ string, _ string, _ int) ([]models.LongShortRatio, error) {
-	return nil, nil
-}
-
 func min(a, b int) int {
 	if a < b {
 		return a

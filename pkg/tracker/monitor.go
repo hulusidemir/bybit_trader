@@ -208,17 +208,6 @@ func (m *Monitor) handleTP2Filled(trade *models.Trade, p models.OrderUpdatePaylo
 	msg := signals.FormatTPHit(trade, "TP2_HIT", p.AvgPrice, p.CumExecQty, 0.50)
 	m.tgBot.SendMessage(msg)
 
-	// Move stop loss to TP1
-	if err := m.exec.SetTradingStop(trade.Symbol, trade.Direction, trade.TP1); err != nil {
-		log.Printf("[Monitor] Error setting SL to TP1 for %s: %v", trade.Symbol, err)
-		m.tgBot.SendMessage(fmt.Sprintf("⚠️ *SL HATASI* — %s\n\nStop loss TP1'e çekilemedi\n```%v```", trade.Symbol, err))
-	} else {
-		m.store.UpdateStopLoss(trade.ID, trade.TP1)
-		m.store.MarkStopMoved(trade.ID, "TP2", time.Now())
-		stopMsg := signals.FormatStopMoved(trade, "TP2 → TP1", trade.TP1)
-		m.tgBot.SendMessage(stopMsg)
-	}
-
 	// Place TP3 limit order (100% of remaining)
 	m.placeNextTPOrder(trade, models.TPPhaseWaitingTP3)
 }

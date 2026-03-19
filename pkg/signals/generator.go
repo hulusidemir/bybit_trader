@@ -122,15 +122,6 @@ func buildSignal(r analysis.MTFResult, tpCfg TPConfig) *models.Signal {
 		dcaLevel = entryMid * (1 + dcaPct/100)
 	}
 
-	// Determine L/S ratio from any available timeframe
-	lsRatio := 0.0
-	for _, mx := range r.Metrics {
-		if mx.LSRatio > 0 {
-			lsRatio = mx.LSRatio
-			break
-		}
-	}
-
 	return &models.Signal{
 		ID:              generateID(),
 		Symbol:          r.Symbol,
@@ -150,7 +141,6 @@ func buildSignal(r analysis.MTFResult, tpCfg TPConfig) *models.Signal {
 		DCALevel:        dcaLevel,
 		Explanation:     r.Description,
 		Metrics:         r.Metrics,
-		LSRatio:         lsRatio,
 		Volume24h:       m.Volume24h,
 		FundingRate:     m.FundingRate,
 		NextFundingTime: m.NextFundingTime,
@@ -165,41 +155,27 @@ func buildSignal(r analysis.MTFResult, tpCfg TPConfig) *models.Signal {
 // ════════════════════════════════════════════════════════════
 
 func calcLongLevels(price float64, m *models.TimeframeMetrics, tpCfg TPConfig) (entryLow, entryHigh, tp1, tp2, tp3 float64) {
-	// Entry zone: tight range around current price
-	if m.BidWallPrice > 0 && m.BidWallPrice < price && m.BidWallPrice > price*0.99 {
-		entryLow = m.BidWallPrice
-		entryHigh = price
-	} else {
-		entryLow = price * 0.998 // 0.2% below
-		entryHigh = price * 1.001
-	}
-
-	entryMid := (entryLow + entryHigh) / 2
+	// Aggressive limit: enter at current price (BestAsk)
+	entryLow = price
+	entryHigh = price
 
 	// Percentage-based TP levels
-	tp1 = entryMid * (1 + tpCfg.TP1Pct/100)
-	tp2 = entryMid * (1 + tpCfg.TP2Pct/100)
-	tp3 = entryMid * (1 + tpCfg.TP3Pct/100)
+	tp1 = price * (1 + tpCfg.TP1Pct/100)
+	tp2 = price * (1 + tpCfg.TP2Pct/100)
+	tp3 = price * (1 + tpCfg.TP3Pct/100)
 
 	return
 }
 
 func calcShortLevels(price float64, m *models.TimeframeMetrics, tpCfg TPConfig) (entryLow, entryHigh, tp1, tp2, tp3 float64) {
-	// Entry zone
-	if m.AskWallPrice > 0 && m.AskWallPrice > price && m.AskWallPrice < price*1.01 {
-		entryLow = price
-		entryHigh = m.AskWallPrice
-	} else {
-		entryLow = price * 0.999
-		entryHigh = price * 1.002 // 0.2% above
-	}
-
-	entryMid := (entryLow + entryHigh) / 2
+	// Aggressive limit: enter at current price (BestBid)
+	entryLow = price
+	entryHigh = price
 
 	// Percentage-based TP levels
-	tp1 = entryMid * (1 - tpCfg.TP1Pct/100)
-	tp2 = entryMid * (1 - tpCfg.TP2Pct/100)
-	tp3 = entryMid * (1 - tpCfg.TP3Pct/100)
+	tp1 = price * (1 - tpCfg.TP1Pct/100)
+	tp2 = price * (1 - tpCfg.TP2Pct/100)
+	tp3 = price * (1 - tpCfg.TP3Pct/100)
 
 	return
 }

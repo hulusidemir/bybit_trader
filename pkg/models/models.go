@@ -125,13 +125,6 @@ type TakerVolume struct {
 	BuySellRatio float64
 }
 
-type LongShortRatio struct {
-	Timestamp int64
-	BuyRatio  float64
-	SellRatio float64
-	Ratio     float64
-}
-
 // ── Analysis Types ──────────────────────────────────────────
 
 type Trend int
@@ -169,7 +162,6 @@ type TimeframeMetrics struct {
 	AskWallPrice  float64
 	AskWallSize   float64
 	FundingRate      float64
-	LSRatio          float64
 	LastPrice        float64
 	Volume24h        float64
 	NextFundingTime  int64
@@ -212,7 +204,6 @@ type Signal struct {
 
 	Explanation    string
 	Metrics        map[string]*TimeframeMetrics
-	LSRatio        float64
 	Volume24h      float64
 	FundingRate    float64
 	NextFundingTime int64

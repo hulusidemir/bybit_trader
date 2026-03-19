@@ -24,7 +24,6 @@ import (
 //   - Futures trades (publicTrade)      → CVD_UPDATE events (perp)
 //   - Spot trades (publicTrade)         → CVD_UPDATE events (spot)
 //   - Futures ticker (tickers)          → TICK + OI_UPDATE events
-//   - Futures kline (kline.5, kline.15) → KLINE events
 //
 // Auto-reconnect + ping/pong built in.
 // ════════════════════════════════════════════════════════════
@@ -97,8 +96,6 @@ func (p *WSProvider) buildFuturesTopics(symbols []string) []string {
 			"orderbook.50."+sym,    // L2 orderbook 50 levels
 			"publicTrade."+sym,     // real-time trades → CVD
 			"tickers."+sym,         // ticker: price, OI, funding, volume
-			"kline.5."+sym,         // 5m klines
-			"kline.15."+sym,        // 15m klines
 		)
 	}
 	return topics
@@ -255,8 +252,6 @@ func (p *WSProvider) handleBybitMessage(msg []byte, isFutures bool) {
 		p.parseTrades(envelope.Data, topic, ts, isFutures)
 	case strings.HasPrefix(topic, "tickers."):
 		p.parseTicker(envelope.Data, topic, ts)
-	case strings.HasPrefix(topic, "kline."):
-		p.parseKline(envelope.Data, topic, ts)
 	}
 }
 
@@ -415,60 +410,6 @@ func (p *WSProvider) parseTicker(data json.RawMessage, topic string, ts int64) {
 }
 
 // ── Kline Parser ────────────────────────────────────────────
-
-type bybitKlineItem struct {
-	Start    string `json:"start"`
-	End      string `json:"end"`
-	Interval string `json:"interval"`
-	Open     string `json:"open"`
-	High     string `json:"high"`
-	Low      string `json:"low"`
-	Close    string `json:"close"`
-	Volume   string `json:"volume"`
-	Turnover string `json:"turnover"`
-	Confirm  bool   `json:"confirm"`
-}
-
-func (p *WSProvider) parseKline(data json.RawMessage, topic string, ts int64) {
-	var klines []bybitKlineItem
-	if err := json.Unmarshal(data, &klines); err != nil {
-		return
-	}
-
-	// Extract symbol: "kline.5.BTCUSDT" → parts[2]=BTCUSDT, parts[1]=5
-	parts := strings.SplitN(topic, ".", 3)
-	if len(parts) < 3 {
-		return
-	}
-	tf := parts[1]
-	sym := parts[2]
-
-	for _, k := range klines {
-		o, _ := strconv.ParseFloat(k.Open, 64)
-		h, _ := strconv.ParseFloat(k.High, 64)
-		l, _ := strconv.ParseFloat(k.Low, 64)
-		c, _ := strconv.ParseFloat(k.Close, 64)
-		v, _ := strconv.ParseFloat(k.Volume, 64)
-		t, _ := strconv.ParseFloat(k.Turnover, 64)
-
-		p.emit(models.MarketEvent{
-			Exchange:  "bybit",
-			Symbol:    sym,
-			EventType: models.EventKline,
-			Payload: models.KlinePayload{
-				Timeframe: tf,
-				Open:      o,
-				High:      h,
-				Low:       l,
-				Close:     c,
-				Volume:    v,
-				Turnover:  t,
-				Closed:    k.Confirm,
-			},
-			Timestamp: ts,
-		})
-	}
-}
 
 // ── Emit Helper ─────────────────────────────────────────────
 

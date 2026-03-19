@@ -56,8 +56,6 @@ func (e *EventEngine) ProcessEvent(evt models.MarketEvent) []MTFResult {
 		e.applyOrderbook(state, evt)
 	case models.EventCVDUpdate:
 		e.applyCVD(state, evt)
-	case models.EventKline:
-		e.applyKline(state, evt)
 	}
 
 	state.LastUpdate = evt.Timestamp
@@ -204,39 +202,6 @@ func (e *EventEngine) applyCVD(s *models.SymbolState, evt models.MarketEvent) {
 	if len(s.CVDHistory) > models.MaxCVDHistory {
 		s.CVDHistory = s.CVDHistory[len(s.CVDHistory)-models.MaxCVDHistory:]
 	}
-}
-
-func (e *EventEngine) applyKline(s *models.SymbolState, evt models.MarketEvent) {
-	p, ok := evt.Payload.(models.KlinePayload)
-	if !ok {
-		return
-	}
-	candle := models.OHLCV{
-		Timestamp: evt.Timestamp,
-		Open:      p.Open,
-		High:      p.High,
-		Low:       p.Low,
-		Close:     p.Close,
-		Volume:    p.Volume,
-		Turnover:  p.Turnover,
-	}
-
-	tf := p.Timeframe
-	klines := s.Klines[tf]
-
-	if p.Closed {
-		// Finalized candle: append to rolling window
-		klines = append(klines, candle)
-		if len(klines) > models.MaxKlineWindow {
-			klines = klines[len(klines)-models.MaxKlineWindow:]
-		}
-	} else if len(klines) > 0 {
-		// Update the forming candle (last element)
-		klines[len(klines)-1] = candle
-	} else {
-		klines = append(klines, candle)
-	}
-	s.Klines[tf] = klines
 }
 
 // ── Signal Evaluation ───────────────────────────────────────
