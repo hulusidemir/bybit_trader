@@ -70,10 +70,29 @@ func FormatTelegramMessage(sig *models.Signal) string {
 
 	// Entry, TP, DCA
 	b.WriteString(fmt.Sprintf("🎯 *Entry Zone:* $%s — $%s\n", formatPrice(sig.EntryLow), formatPrice(sig.EntryHigh)))
-	b.WriteString(fmt.Sprintf("✅ *TP1:* $%s (+1%%)\n", formatPrice(sig.TP1)))
-	b.WriteString(fmt.Sprintf("✅ *TP2:* $%s (+2.5%%)\n", formatPrice(sig.TP2)))
-	b.WriteString(fmt.Sprintf("✅ *TP3:* $%s (+5%%)\n", formatPrice(sig.TP3)))
-	b.WriteString(fmt.Sprintf("📊 *DCA Seviyesi:* $%s (-20%%)\n\n", formatPrice(sig.DCALevel)))
+	entryMid := (sig.EntryLow + sig.EntryHigh) / 2
+	tp1Pct := 0.0
+	tp2Pct := 0.0
+	tp3Pct := 0.0
+	dcaPct := 0.0
+	if entryMid > 0 {
+		switch sig.Direction {
+		case models.DirectionLong:
+			tp1Pct = ((sig.TP1 - entryMid) / entryMid) * 100
+			tp2Pct = ((sig.TP2 - entryMid) / entryMid) * 100
+			tp3Pct = ((sig.TP3 - entryMid) / entryMid) * 100
+			dcaPct = ((entryMid - sig.DCALevel) / entryMid) * 100
+		case models.DirectionShort:
+			tp1Pct = ((entryMid - sig.TP1) / entryMid) * 100
+			tp2Pct = ((entryMid - sig.TP2) / entryMid) * 100
+			tp3Pct = ((entryMid - sig.TP3) / entryMid) * 100
+			dcaPct = ((sig.DCALevel - entryMid) / entryMid) * 100
+		}
+	}
+	b.WriteString(fmt.Sprintf("✅ *TP1:* $%s (+%.1f%%)\n", formatPrice(sig.TP1), math.Abs(tp1Pct)))
+	b.WriteString(fmt.Sprintf("✅ *TP2:* $%s (+%.1f%%)\n", formatPrice(sig.TP2), math.Abs(tp2Pct)))
+	b.WriteString(fmt.Sprintf("✅ *TP3:* $%s (+%.1f%%)\n", formatPrice(sig.TP3), math.Abs(tp3Pct)))
+	b.WriteString(fmt.Sprintf("📊 *DCA Seviyesi:* $%s (-%.1f%%)\n\n", formatPrice(sig.DCALevel), math.Abs(dcaPct)))
 
 	// Grade and extras
 	b.WriteString(fmt.Sprintf("⚡ *Sinyal Gücü:* %s (%d/100)\n", sig.Grade, sig.Confidence))
