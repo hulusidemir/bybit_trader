@@ -343,6 +343,7 @@
             <div class="flex items-center gap-3 px-6 py-4 bg-surface-container-low">
                 <span class="material-symbols-outlined text-sm text-primary">swap_vert</span>
                 <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Aktif Pozisyonlar</h4>
+                <span id="active-count-badge" class="text-[10px] font-mono bg-secondary/10 text-secondary px-2 py-0.5 rounded-full">0</span>
             </div>
             <div class="overflow-x-auto">
                 <table class="dt-table">
@@ -719,37 +720,42 @@ function nearEq(a,b){ if(!a||!b) return false; return Math.abs(a-b)<=Math.max(Ma
 
 function patternWithTip(name){
     const info = patternDescMap[name];
-    const desc = info ? info.description : '';
-    const dir = info ? info.direction : '';
-    if(!desc) return `<span class="text-on-surface-variant">${name}</span>`;
-    const dirLabel = dir === 'LONG' ? '<span class=\'text-primary font-bold\'>LONG</span>' : dir === 'SHORT' ? '<span class=\'text-tertiary font-bold\'>SHORT</span>' : '';
-    const tip = `<div class='text-on-surface font-bold text-xs mb-1'>${name}</div>${dirLabel ? '<div class=\'mb-1\'>' + dirLabel + '</div>' : ''}<div class='text-on-surface-variant text-[11px] leading-relaxed'>${desc}</div>`;
-    const escaped = tip.replace(/'/g, '&#39;');
-    return `<span class="inline-flex items-center gap-1 text-on-surface-variant">${name}<span class="material-symbols-outlined text-[13px] text-on-surface-variant/40 cursor-help" onmouseenter="showTooltip(event,'${escaped}')" onmouseleave="hideTooltip()">help</span></span>`;
+    if(!info || !info.description) return `<span class="text-on-surface-variant">${name}</span>`;
+    return `<span class="inline-flex items-center gap-1 text-on-surface-variant">${name}<span class="material-symbols-outlined text-[13px] text-on-surface-variant/40 cursor-help tip-pattern" data-pattern="${name}">help</span></span>`;
 }
 
-function tradeDetailTip(t){
+function buildPatternTipHtml(name){
+    const info = patternDescMap[name];
+    if(!info) return '';
+    const dir = info.direction;
+    const dirLabel = dir === 'LONG' ? '<span class="text-primary font-bold">LONG</span>' : dir === 'SHORT' ? '<span class="text-tertiary font-bold">SHORT</span>' : '';
+    return `<div class="text-on-surface font-bold text-xs mb-1">${name}</div>${dirLabel ? '<div class="mb-1">' + dirLabel + '</div>' : ''}<div class="text-on-surface-variant text-[11px] leading-relaxed">${info.description}</div>`;
+}
+
+function buildTradeDetailHtml(id){
+    const t = tradeMap[id];
+    if(!t) return '';
     const avg = t.AvgEntryPrice || t.EntryPrice;
     const pv = t.PnLPercent || 0;
     const dur = fmtDuration(t.OpenedAt, t.ClosedAt);
-    let html = `<div class='text-on-surface font-bold text-xs mb-2'>${t.Symbol} · ${t.Direction}</div>`;
-    html += `<div class='grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]'>`;
-    html += `<span class='text-on-surface-variant'>Açılış:</span><span class='text-on-surface'>${fmtDate(t.OpenedAt)}</span>`;
-    html += `<span class='text-on-surface-variant'>Kapanış:</span><span class='text-on-surface'>${t.ClosedAt ? fmtDate(t.ClosedAt) : '—'}</span>`;
-    html += `<span class='text-on-surface-variant'>Süre:</span><span class='text-on-surface'>${dur}</span>`;
-    html += `<span class='text-on-surface-variant'>Pattern:</span><span class='text-on-surface'>${t.Pattern} (${t.Grade})</span>`;
-    html += `<span class='text-on-surface-variant'>Giriş:</span><span class='text-on-surface'>$${fmtP(avg)}</span>`;
-    html += `<span class='text-on-surface-variant'>Çıkış:</span><span class='text-on-surface'>${t.ExitPrice ? '$'+fmtP(t.ExitPrice) : '—'}</span>`;
-    html += `<span class='text-on-surface-variant'>Margin:</span><span class='text-on-surface'>$${(t.MarginUsed||0).toFixed(0)}</span>`;
-    html += `<span class='text-on-surface-variant'>DCA:</span><span class='text-on-surface'>${t.DCACount||0} kez</span>`;
-    html += `<span class='text-on-surface-variant'>TP1:</span><span class='text-on-surface'>$${fmtP(t.TP1)}</span>`;
-    html += `<span class='text-on-surface-variant'>TP2:</span><span class='text-on-surface'>$${fmtP(t.TP2)}</span>`;
-    html += `<span class='text-on-surface-variant'>TP3:</span><span class='text-on-surface'>$${fmtP(t.TP3)}</span>`;
-    html += `<span class='text-on-surface-variant'>SL:</span><span class='text-on-surface'>${t.StopLoss ? '$'+fmtP(t.StopLoss) : '—'}</span>`;
-    html += `<span class='text-on-surface-variant'>Durum:</span><span class='text-on-surface'>${t.Status}</span>`;
-    html += `<span class='text-on-surface-variant'>PnL:</span><span class='font-bold' style='${pnlColor(pv)}'>${pnlStr(pv)}</span>`;
-    html += `</div>`;
-    return html;
+    let h = `<div class="text-on-surface font-bold text-xs mb-2">${t.Symbol} · ${t.Direction}</div>`;
+    h += `<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">`;
+    h += `<span class="text-on-surface-variant">Açılış:</span><span class="text-on-surface">${fmtDate(t.OpenedAt)}</span>`;
+    h += `<span class="text-on-surface-variant">Kapanış:</span><span class="text-on-surface">${t.ClosedAt ? fmtDate(t.ClosedAt) : '—'}</span>`;
+    h += `<span class="text-on-surface-variant">Süre:</span><span class="text-on-surface">${dur}</span>`;
+    h += `<span class="text-on-surface-variant">Pattern:</span><span class="text-on-surface">${t.Pattern} (${t.Grade})</span>`;
+    h += `<span class="text-on-surface-variant">Giriş:</span><span class="text-on-surface">$${fmtP(avg)}</span>`;
+    h += `<span class="text-on-surface-variant">Çıkış:</span><span class="text-on-surface">${t.ExitPrice ? '$'+fmtP(t.ExitPrice) : '—'}</span>`;
+    h += `<span class="text-on-surface-variant">Margin:</span><span class="text-on-surface">$${(t.MarginUsed||0).toFixed(0)}</span>`;
+    h += `<span class="text-on-surface-variant">DCA:</span><span class="text-on-surface">${t.DCACount||0} kez</span>`;
+    h += `<span class="text-on-surface-variant">TP1:</span><span class="text-on-surface">$${fmtP(t.TP1)}</span>`;
+    h += `<span class="text-on-surface-variant">TP2:</span><span class="text-on-surface">$${fmtP(t.TP2)}</span>`;
+    h += `<span class="text-on-surface-variant">TP3:</span><span class="text-on-surface">$${fmtP(t.TP3)}</span>`;
+    h += `<span class="text-on-surface-variant">SL:</span><span class="text-on-surface">${t.StopLoss ? '$'+fmtP(t.StopLoss) : '—'}</span>`;
+    h += `<span class="text-on-surface-variant">Durum:</span><span class="text-on-surface">${t.Status}</span>`;
+    h += `<span class="text-on-surface-variant">PnL:</span><span class="font-bold" style="${pnlColor(pv)}">${pnlStr(pv)}</span>`;
+    h += `</div>`;
+    return h;
 }
 
 function dirBadge(d){
@@ -926,6 +932,8 @@ function renderDashActive(){
 function renderActiveTrades(){
     const tbody = document.getElementById('active-body');
     if(!tbody) return;
+    const acb = document.getElementById('active-count-badge');
+    if(acb) acb.textContent = activeTrades ? activeTrades.length : 0;
     if(!activeTrades || !activeTrades.length){
         tbody.innerHTML = `<tr><td colspan="14" class="text-center py-12 text-on-surface-variant/50"><div class="text-3xl mb-3 opacity-30">📡</div>Aktif pozisyon yok</td></tr>`;
         return;
@@ -991,9 +999,8 @@ function renderHistory(){
     const page = list.slice(start, start+perPage);
     tbody.innerHTML = page.map(t => {
         const pv = t.PnLPercent || 0;
-        const tipHtml = tradeDetailTip(t).replace(/'/g, '&#39;');
         return `<tr>
-            <td class="text-on-surface-variant"><span class="inline-flex items-center gap-1">${fmtDate(t.OpenedAt)}<span class="material-symbols-outlined text-[13px] text-on-surface-variant/40 cursor-help" onmouseenter="showTooltip(event,'${tipHtml}')" onmouseleave="hideTooltip()">info</span></span></td>
+            <td class="text-on-surface-variant"><span class="inline-flex items-center gap-1">${fmtDate(t.OpenedAt)}<span class="material-symbols-outlined text-[13px] text-on-surface-variant/40 cursor-help tip-trade" data-tid="${t.ID}">info</span></span></td>
             <td class="font-bold text-primary">${t.Symbol}</td>
             <td>${dirBadge(t.Direction)}</td>
             <td>${patternWithTip(t.Pattern)}</td>
@@ -1290,6 +1297,17 @@ function showTooltip(e, html){
     tooltipEl.style.left = left+'px'; tooltipEl.style.top = top+'px';
 }
 function hideTooltip(){ if(tooltipEl) tooltipEl.classList.add('hidden'); }
+
+// Event delegation for tooltips
+document.addEventListener('mouseenter', function(e){
+    const pat = e.target.closest('.tip-pattern');
+    if(pat){ showTooltip(e, buildPatternTipHtml(pat.dataset.pattern)); return; }
+    const trade = e.target.closest('.tip-trade');
+    if(trade){ showTooltip(e, buildTradeDetailHtml(trade.dataset.tid)); return; }
+}, true);
+document.addEventListener('mouseleave', function(e){
+    if(e.target.closest('.tip-pattern') || e.target.closest('.tip-trade')) hideTooltip();
+}, true);
 
 // ═══════════════════════════════════════════════════════════
 //  INIT
