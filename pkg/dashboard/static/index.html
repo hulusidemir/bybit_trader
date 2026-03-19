@@ -190,7 +190,7 @@
             <div class="bg-surface-container p-5 rounded-xl border-l-2 border-secondary/30">
                 <p class="text-xs font-mono text-on-surface-variant uppercase tracking-tighter mb-1">Hesap Bakiyesi</p>
                 <h3 id="kpi-equity" class="font-headline text-2xl font-extrabold text-on-surface tracking-tight">—</h3>
-                <div class="mt-2 flex items-center text-[10px] text-primary font-medium">
+                <div class="mt-2 flex items-center text-[10px] text-on-surface-variant/50 font-medium">
                     <span class="material-symbols-outlined text-sm mr-1">account_balance_wallet</span>
                     <span id="kpi-equity-sub" class="font-mono">Yükleniyor...</span>
                 </div>
@@ -694,6 +694,15 @@ async function fetchData(){
     }
 }
 
+async function fetchBalance(){
+    try {
+        const res = await fetch('/api/balance');
+        const data = await res.json();
+        const eqEl = document.getElementById('kpi-equity');
+        if(eqEl && data.balance) { eqEl.textContent = '$' + data.balance.toFixed(2); }
+    } catch(e) { console.error('Balance fetch error:', e); }
+}
+
 // ═══════════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════════
@@ -765,9 +774,8 @@ function renderDashboard(){
 
     // KPI Cards
     const eqEl = document.getElementById('kpi-equity');
-    if(eqEl) { eqEl.textContent = s.TotalMargin ? '$' + s.TotalMargin.toFixed(0) : '—'; }
     const eqSub = document.getElementById('kpi-equity-sub');
-    if(eqSub) { eqSub.textContent = (s.ActiveTrades||0) + ' aktif pozisyon'; }
+    if(eqSub) { eqSub.textContent = s.TotalMargin ? 'Toplam Marjin: $' + (s.TotalMargin||0).toFixed(0) : (s.ActiveTrades||0) + ' aktif pozisyon'; }
 
     const pnlEl = document.getElementById('kpi-pnl');
     if(pnlEl) { pnlEl.textContent = pnlStr(pnlVal); pnlEl.className = 'font-headline text-2xl font-extrabold tracking-tight ' + pnlClass(pnlVal); }
@@ -982,11 +990,19 @@ function getEquityData(){
         .sort((a,b) => new Date(a.ClosedAt) - new Date(b.ClosedAt));
     if(closed.length < 2) return [];
     let cum = 0;
-    return closed.map(t => {
+    const raw = closed.map(t => {
         cum += t.PnLPercent;
         const d = new Date(t.ClosedAt);
         return { time: Math.floor(d.getTime()/1000), value: parseFloat(cum.toFixed(2)) };
     });
+    // Deduplicate timestamps — keep last value per second
+    const deduped = [];
+    for(let i = 0; i < raw.length; i++){
+        if(i === raw.length - 1 || raw[i].time !== raw[i+1].time){
+            deduped.push(raw[i]);
+        }
+    }
+    return deduped;
 }
 
 function drawEquityChart(containerId, isLarge){
@@ -1243,6 +1259,8 @@ termLog('Demir Trade Bot v3.0 Komuta Merkezi başlatıldı', 'success');
 termLog('REST API verisi yükleniyor...', 'info');
 fetchData().then(() => {
     termLog(`${allTrades.length} işlem yüklendi, ${activeTrades.length} aktif pozisyon`, 'success');
+    fetchBalance();
+    setInterval(fetchBalance, 30000);
     termLog('WebSocket bağlantısı deneniyor...', 'info');
     connectWebSocket();
     setTimeout(() => {

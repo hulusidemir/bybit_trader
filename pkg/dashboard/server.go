@@ -33,9 +33,9 @@ var upgrader = websocket.Upgrader{
 // wsMessage is the JSON envelope sent to dashboard clients.
 type wsMessage struct {
 	Type    string `json:"type"`              // "trade_update", "stats_update", "active_update", "log"
-	Payload any    `json:"payload,omitempty"`  // typed data
-	Message string `json:"message,omitempty"`  // for type=log
-	Level   string `json:"level,omitempty"`    // for type=log
+	Payload any    `json:"payload,omitempty"` // typed data
+	Message string `json:"message,omitempty"` // for type=log
+	Level   string `json:"level,omitempty"`   // for type=log
 }
 
 type wsClient struct {
@@ -118,23 +118,30 @@ func (h *Hub) broadcastJSON(msg wsMessage) {
 	}
 }
 
+// BalanceFetcher can retrieve wallet balance from the exchange.
+type BalanceFetcher interface {
+	GetWalletBalance() (float64, error)
+}
+
 // ═══════════════════════════════════════════════════════════
 //  Server
 // ═══════════════════════════════════════════════════════════
 
 type Server struct {
-	store       *tracker.Store
-	port        int
-	hub         *Hub
-	execEventCh <-chan models.ExecutionEvent
+	store          *tracker.Store
+	port           int
+	hub            *Hub
+	execEventCh    <-chan models.ExecutionEvent
+	balanceFetcher BalanceFetcher
 }
 
-func NewServer(store *tracker.Store, port int, execEventCh <-chan models.ExecutionEvent) *Server {
+func NewServer(store *tracker.Store, port int, execEventCh <-chan models.ExecutionEvent, bf BalanceFetcher) *Server {
 	return &Server{
-		store:       store,
-		port:        port,
-		hub:         newHub(),
-		execEventCh: execEventCh,
+		store:          store,
+		port:           port,
+		hub:            newHub(),
+		execEventCh:    execEventCh,
+		balanceFetcher: bf,
 	}
 }
 
@@ -151,6 +158,7 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/stats", s.handleStats)
 	mux.HandleFunc("/api/active", s.handleActive)
 	mux.HandleFunc("/api/patterns", handlePatterns)
+	mux.HandleFunc("/api/balance", s.handleBalance)
 
 	// WebSocket endpoint
 	mux.HandleFunc("/ws", s.handleWS)
@@ -344,6 +352,22 @@ func (s *Server) handleActive(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(trades)
+}
+
+func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if s.balanceFetcher == nil {
+		json.NewEncoder(w).Encode(map[string]float64{"balance": 0})
+		return
+	}
+	bal, err := s.balanceFetcher.GetWalletBalance()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]float64{"balance": bal})
 }
 
 func handlePatterns(w http.ResponseWriter, r *http.Request) {

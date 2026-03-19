@@ -92,8 +92,9 @@ func main() {
 	// ── Initialize Trade Client & Executor ─────────────
 	var exec *executor.Executor
 	var execEventCh <-chan models.ExecutionEvent
+	var tradeClient *bybit.TradeClient
 	if cfg.TradingEnabled {
-		tradeClient := bybit.NewTradeClient(cfg.BybitAPIKey, cfg.BybitAPISecret, cfg.BybitTestnet)
+		tradeClient = bybit.NewTradeClient(cfg.BybitAPIKey, cfg.BybitAPISecret, cfg.BybitTestnet)
 		if err := tradeClient.LoadInstruments(); err != nil {
 			log.Fatalf("Failed to load instrument data: %v", err)
 		}
@@ -133,7 +134,11 @@ func main() {
 	monitor.Start()
 
 	// ── Start Dashboard ────────────────────────────────
-	dash := dashboard.NewServer(store, cfg.DashboardPort, dashExecCh)
+	var balanceFetcher dashboard.BalanceFetcher
+	if cfg.TradingEnabled {
+		balanceFetcher = tradeClient
+	}
+	dash := dashboard.NewServer(store, cfg.DashboardPort, dashExecCh, balanceFetcher)
 	dash.Start()
 
 	// ── Fetch Instruments (one-time REST) ──────────────
