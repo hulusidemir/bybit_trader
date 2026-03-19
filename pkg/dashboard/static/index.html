@@ -1,327 +1,470 @@
 <!DOCTYPE html>
-<html lang="tr" class="dark">
+<html class="dark" lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HFT MATRIX — Command Center</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23000000'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='36' fill='%2300ff41'%3E⚡%3C/text%3E%3C/svg%3E">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Demir Trade Bot v3.0 — Komuta Merkezi</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230b1326'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='36' fill='%234edea3'%3E⚡%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@700;800&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
     tailwind.config = {
-        darkMode: 'class',
+        darkMode: "class",
         theme: {
             extend: {
                 colors: {
-                    mx: { bg: '#000000', card: '#050505', panel: '#0a0a0a', border: '#0d1a0d', 'border-light': '#1a2e1a' },
-                    neon: { green: '#00ff41', red: '#ff3366', amber: '#ffaa00' },
+                    "secondary-fixed": "#c9e6ff",
+                    "on-secondary-fixed": "#001e2f",
+                    "on-primary": "#003824",
+                    "inverse-surface": "#dae2fd",
+                    "on-primary-container": "#003b26",
+                    "tertiary-fixed": "#ffdad7",
+                    "tertiary-container": "#ff6c66",
+                    "secondary-container": "#00a2e6",
+                    "on-tertiary-fixed": "#410004",
+                    "on-background": "#dae2fd",
+                    "on-surface": "#dae2fd",
+                    "surface-container-highest": "#2d3449",
+                    "on-primary-fixed-variant": "#005236",
+                    "surface-variant": "#2d3449",
+                    "inverse-primary": "#006c49",
+                    "primary-fixed": "#6ffbbe",
+                    "surface-container-high": "#222a3d",
+                    "surface-dim": "#0b1326",
+                    "outline": "#88929b",
+                    "on-primary-fixed": "#002113",
+                    "primary-fixed-dim": "#4edea3",
+                    "surface-container": "#171f33",
+                    "outline-variant": "#3e4850",
+                    "surface-container-low": "#131b2e",
+                    "on-tertiary-container": "#6e000c",
+                    "on-error-container": "#ffdad6",
+                    "on-tertiary-fixed-variant": "#930013",
+                    "secondary-fixed-dim": "#89ceff",
+                    "error": "#ffb4ab",
+                    "tertiary": "#ffb3ad",
+                    "background": "#0b1326",
+                    "on-tertiary": "#68000a",
+                    "primary": "#4edea3",
+                    "secondary": "#89ceff",
+                    "on-secondary-fixed-variant": "#004c6e",
+                    "surface-tint": "#4edea3",
+                    "on-secondary-container": "#00344e",
+                    "on-secondary": "#00344d",
+                    "surface-container-lowest": "#060e20",
+                    "surface": "#0b1326",
+                    "primary-container": "#00b17b",
+                    "surface-bright": "#31394d",
+                    "on-surface-variant": "#bec8d2",
+                    "inverse-on-surface": "#283044",
+                    "on-error": "#690005",
+                    "error-container": "#93000a",
+                    "tertiary-fixed-dim": "#ffb3ad"
                 },
-                fontFamily: { mono: ['JetBrains Mono', 'monospace'], sans: ['Inter', 'sans-serif'] },
-            }
-        }
+                fontFamily: {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"],
+                    "mono": ["JetBrains Mono"]
+                },
+                borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+            },
+        },
     }
-    </script>
-    <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { background:#000000; font-family:'Inter',sans-serif; color:#b0ffb0; overflow-x:hidden; }
+</script>
+<style>
+    body { background-color: #0b1326; color: #dae2fd; font-family: 'Inter', sans-serif; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .glass-panel { backdrop-filter: blur(12px); background: rgba(23, 31, 51, 0.7); }
+    .pulsate-green { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(1.2); } }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:#0b1326; }
+    ::-webkit-scrollbar-thumb { background:#2d3449; border-radius:3px; }
+    ::-webkit-scrollbar-thumb:hover { background:#3e4850; }
 
-        /* ═══ FLASH ANIMATIONS ═══ */
-        @keyframes flash-green {
-            0% { background-color: rgba(0,255,65,0.45); box-shadow: inset 0 0 30px rgba(0,255,65,0.25), 0 0 15px rgba(0,255,65,0.3); }
-            100% { background-color: transparent; box-shadow: none; }
-        }
-        @keyframes flash-red {
-            0% { background-color: rgba(255,51,102,0.45); box-shadow: inset 0 0 30px rgba(255,51,102,0.25), 0 0 15px rgba(255,51,102,0.3); }
-            100% { background-color: transparent; box-shadow: none; }
-        }
-        .flash-green { animation: flash-green 500ms ease-out; }
-        .flash-red { animation: flash-red 500ms ease-out; }
+    /* Flash animations */
+    @keyframes flash-green {
+        0% { background-color: rgba(78,222,163,0.35); box-shadow: inset 0 0 20px rgba(78,222,163,0.2); }
+        100% { background-color: transparent; box-shadow: none; }
+    }
+    @keyframes flash-red {
+        0% { background-color: rgba(255,179,173,0.35); box-shadow: inset 0 0 20px rgba(255,179,173,0.2); }
+        100% { background-color: transparent; box-shadow: none; }
+    }
+    .flash-green { animation: flash-green 500ms ease-out; }
+    .flash-red { animation: flash-red 500ms ease-out; }
 
-        @keyframes pulse-glow {
-            0%, 100% { opacity:1; box-shadow: 0 0 10px currentColor; }
-            50% { opacity:0.3; box-shadow: 0 0 4px currentColor; }
-        }
-        .pulse-dot { animation: pulse-glow 1.5s ease-in-out infinite; }
+    /* Table */
+    .dt-table { width:100%; border-collapse:collapse; font-family:'JetBrains Mono',monospace; font-size:12px; }
+    .dt-table thead th {
+        padding:10px 12px; text-align:left; font-size:10px; font-weight:600;
+        text-transform:uppercase; letter-spacing:0.8px; color:#88929b;
+        background:#131b2e; border-bottom:1px solid rgba(78,222,163,0.08);
+        white-space:nowrap; position:sticky; top:0; z-index:5; user-select:none;
+    }
+    .dt-table thead th.sortable { cursor:pointer; transition:color 0.15s; }
+    .dt-table thead th.sortable:hover { color:#4edea3; }
+    .dt-table tbody tr { border-bottom:1px solid rgba(78,222,163,0.04); transition:background 0.15s; }
+    .dt-table tbody tr:hover { background:rgba(78,222,163,0.03); }
+    .dt-table td { padding:8px 12px; white-space:nowrap; font-weight:500; }
 
-        @keyframes matrix-rain {
-            0% { opacity:0; transform:translateY(-10px); }
-            10% { opacity:1; }
-            90% { opacity:1; }
-            100% { opacity:0; transform:translateY(10px); }
-        }
+    /* Badge */
+    .badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:700; font-family:'JetBrains Mono',monospace; letter-spacing:0.3px; }
 
-        /* ═══ GLASS PANELS (Matrix Green Tint) ═══ */
-        .glass { background: rgba(0,10,0,0.85); backdrop-filter: blur(16px); border: 1px solid rgba(0,255,65,0.08); }
-        .glass-hover:hover { border-color: rgba(0,255,65,0.25); box-shadow: 0 0 30px rgba(0,255,65,0.06); }
-
-        /* ═══ SCROLLBAR ═══ */
-        ::-webkit-scrollbar { width:5px; height:5px; }
-        ::-webkit-scrollbar-track { background:#000000; }
-        ::-webkit-scrollbar-thumb { background:#0d1a0d; border-radius:3px; }
-        ::-webkit-scrollbar-thumb:hover { background:#1a2e1a; }
-
-        /* ═══ TABLE STYLES ═══ */
-        .hft-table { width:100%; border-collapse:collapse; font-family:'JetBrains Mono',monospace; font-size:12px; }
-        .hft-table thead th {
-            padding:10px 12px; text-align:left; font-size:10px; font-weight:600;
-            text-transform:uppercase; letter-spacing:0.8px; color:#1a5c1a;
-            background:#050505; border-bottom:1px solid rgba(0,255,65,0.08);
-            white-space:nowrap; position:sticky; top:0; z-index:5; user-select:none;
-        }
-        .hft-table thead th.sortable { cursor:pointer; transition:color 0.15s; }
-        .hft-table thead th.sortable:hover { color:#00ff41; }
-        .hft-table tbody tr { border-bottom:1px solid rgba(0,255,65,0.04); transition:background 0.1s; }
-        .hft-table tbody tr:hover { background:rgba(0,255,65,0.03); }
-        .hft-table td { padding:8px 12px; white-space:nowrap; font-weight:500; }
-
-        /* ═══ TERMINAL ═══ */
-        #terminal-body::-webkit-scrollbar { width:3px; }
-        #terminal-body::-webkit-scrollbar-thumb { background:#1a2e1a; border-radius:2px; }
-
-        /* ═══ BADGE ═══ */
-        .badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; font-family:'JetBrains Mono',monospace; letter-spacing:0.3px; }
-
-        /* ═══ STAT CARD GLOW ═══ */
-        .stat-glow::before {
-            content:''; position:absolute; top:-1px; left:-1px; right:-1px; bottom:-1px;
-            border-radius:inherit; opacity:0; transition:opacity 0.3s;
-            background:linear-gradient(135deg, rgba(0,255,65,0.12), transparent);
-        }
-        .stat-glow:hover::before { opacity:1; }
-
-        /* ═══ TV CHART ═══ */
-        .tv-chart-container { position:relative; width:100%; }
-
-        /* ═══ NAV INDICATOR ═══ */
-        .nav-active { color:#00ff41 !important; text-shadow: 0 0 10px rgba(0,255,65,0.5); }
-        .nav-active::after {
-            content:''; position:absolute; bottom:0; left:8px; right:8px;
-            height:2px; background:#00ff41; border-radius:2px 2px 0 0;
-            box-shadow: 0 0 8px rgba(0,255,65,0.5);
-        }
-    </style>
+    /* Nav */
+    .nav-link-active { color: #89ceff !important; background: rgba(137,206,255,0.1); }
+</style>
 </head>
-<body>
+<body class="antialiased selection:bg-primary selection:text-on-primary">
 
-<!-- ═══════════════════════════════════════════════════════════ -->
-<!--  TOP BAR                                                    -->
-<!-- ═══════════════════════════════════════════════════════════ -->
-<header class="sticky top-0 z-50 flex items-center justify-between h-12 px-5 bg-mx-card border-b border-mx-border">
-    <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
-             style="background:linear-gradient(135deg,#00ff41,#00cc33); box-shadow:0 0 25px rgba(0,255,65,0.5);">⚡</div>
-        <div class="font-bold text-sm tracking-tight" style="color:#00ff41; text-shadow:0 0 15px rgba(0,255,65,0.4);">HFT COMMAND CENTER
-            <span class="text-[10px] font-mono font-normal ml-2" style="color:#1a5c1a;">by Hulusi DEMİR</span>
+<!-- ═══ Sidebar (Desktop) ═══ -->
+<aside class="hidden md:flex flex-col p-4 space-y-2 h-screen w-64 fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant/10 z-50">
+    <div class="mb-8 px-2">
+        <h1 class="font-headline text-xl font-black text-on-surface uppercase tracking-tighter">DEMIR TRADING BOT</h1>
+        <p class="text-xs text-outline font-mono tracking-widest">by Hulusi DEMİR</p>
+    </div>
+    <nav class="space-y-1">
+        <a class="nav-link nav-link-active flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 cursor-pointer" data-page="dashboard">
+            <span class="material-symbols-outlined text-[20px]">dashboard</span>
+            <span class="font-headline font-medium text-sm">Gösterge Paneli</span>
+        </a>
+        <a class="nav-link flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded-lg transition-all duration-200 cursor-pointer" data-page="trades">
+            <span class="material-symbols-outlined text-[20px]">show_chart</span>
+            <span class="font-headline font-medium text-sm">İşlemler</span>
+        </a>
+        <a class="nav-link flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded-lg transition-all duration-200 cursor-pointer" data-page="analysis">
+            <span class="material-symbols-outlined text-[20px]">analytics</span>
+            <span class="font-headline font-medium text-sm">Analiz</span>
+        </a>
+        <a class="nav-link flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded-lg transition-all duration-200 cursor-pointer" data-page="patterns">
+            <span class="material-symbols-outlined text-[20px]">pattern</span>
+            <span class="font-headline font-medium text-sm">Patternler</span>
+        </a>
+    </nav>
+    <div class="mt-auto p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
+        <div class="flex items-center gap-3">
+            <div id="sidebar-status-dot" class="w-2 h-2 rounded-full bg-primary pulsate-green"></div>
+            <span class="text-[10px] font-mono text-on-surface-variant uppercase tracking-widest">Sistem Durumu</span>
+        </div>
+        <p id="sidebar-status-text" class="text-[11px] text-primary mt-1 font-mono">BAŞLATILIYOR...</p>
+    </div>
+</aside>
+
+<!-- ═══ Top AppBar ═══ -->
+<header class="bg-surface-container-lowest/80 backdrop-blur-xl fixed top-0 right-0 left-0 md:left-64 z-50 flex justify-between items-center px-6 h-16 w-full border-b border-outline-variant/10">
+    <div class="flex items-center gap-4">
+        <span class="font-headline font-bold text-on-surface tracking-tighter text-lg">Demir Trade Bot v3.0-Stable</span>
+        <div id="live-status-badge" class="flex items-center gap-2 bg-error/10 px-2 py-1 rounded">
+            <div id="live-status-dot" class="w-1.5 h-1.5 rounded-full bg-error pulsate-green"></div>
+            <span id="live-status-label" class="text-[10px] font-mono text-error uppercase">Bağlanıyor</span>
         </div>
     </div>
-    <div class="flex items-center gap-5 text-xs">
-        <span id="clock" class="font-mono" style="color:#00cc33;"></span>
-        <span id="uptime" class="font-mono" style="color:#1a5c1a;"></span>
-        <div class="flex items-center gap-2">
-            <div id="ws-dot" class="w-2 h-2 rounded-full pulse-dot" style="background:#ffaa00;color:#ffaa00;"></div>
-            <span id="ws-label" class="font-semibold text-[11px]" style="color:#1a5c1a;">BAĞLANIYOR</span>
-        </div>
-        <div class="flex items-center gap-2">
-            <div id="api-dot" class="w-2 h-2 rounded-full pulse-dot" style="background:#00ff41;color:#00ff41;"></div>
-            <span id="api-label" class="font-semibold text-[11px]" style="color:#1a5c1a;">REST API</span>
+    <div class="hidden lg:flex items-center gap-6">
+        <span id="clock" class="text-secondary font-mono text-xs tracking-widest uppercase"></span>
+        <span id="uptime" class="text-outline font-mono text-xs tracking-widest uppercase"></span>
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
+                <div id="ws-dot" class="w-1.5 h-1.5 rounded-full bg-tertiary pulsate-green"></div>
+                <span id="ws-label" class="text-[10px] font-mono text-on-surface-variant uppercase tracking-widest">WS BAĞLANIYOR</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div id="api-dot" class="w-1.5 h-1.5 rounded-full bg-primary pulsate-green"></div>
+                <span id="api-label" class="text-[10px] font-mono text-on-surface-variant uppercase tracking-widest">REST API</span>
+            </div>
         </div>
     </div>
 </header>
 
-<!-- ═══════════════════════════════════════════════════════════ -->
-<!--  NAVIGATION                                                 -->
-<!-- ═══════════════════════════════════════════════════════════ -->
-<nav class="flex items-center gap-0 px-5 bg-mx-card border-b border-mx-border">
-    <button class="nav-btn nav-active relative px-4 py-3 text-xs font-semibold transition-colors flex items-center gap-2" style="color:#1a5c1a;" data-page="dashboard">
-        <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard
-    </button>
-    <button class="nav-btn relative px-4 py-3 text-xs font-semibold transition-colors flex items-center gap-2" style="color:#1a5c1a;" data-page="trades">
-        <i data-lucide="candlestick-chart" class="w-3.5 h-3.5"></i> İşlemler
-    </button>
-    <button class="nav-btn relative px-4 py-3 text-xs font-semibold transition-colors flex items-center gap-2" style="color:#1a5c1a;" data-page="analysis">
-        <i data-lucide="brain-circuit" class="w-3.5 h-3.5"></i> Analiz
-    </button>
-    <button class="nav-btn relative px-4 py-3 text-xs font-semibold transition-colors flex items-center gap-2" style="color:#1a5c1a;" data-page="patterns">
-        <i data-lucide="scan-eye" class="w-3.5 h-3.5"></i> Patternler
-    </button>
+<!-- ═══ Main Content ═══ -->
+<main class="pt-20 pb-24 md:pb-8 px-4 md:pl-72 md:pr-8 min-h-screen">
+
+    <!-- ═══ PAGE: DASHBOARD ═══ -->
+    <div class="page" id="page-dashboard">
+
+        <!-- KPI Bar -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="kpi-row">
+            <div class="bg-surface-container p-5 rounded-xl border-l-2 border-secondary/30">
+                <p class="text-xs font-mono text-on-surface-variant uppercase tracking-tighter mb-1">Hesap Bakiyesi</p>
+                <h3 id="kpi-equity" class="font-headline text-2xl font-extrabold text-on-surface tracking-tight">—</h3>
+                <div class="mt-2 flex items-center text-[10px] text-primary font-medium">
+                    <span class="material-symbols-outlined text-sm mr-1">account_balance_wallet</span>
+                    <span id="kpi-equity-sub" class="font-mono">Yükleniyor...</span>
+                </div>
+            </div>
+            <div class="bg-surface-container p-5 rounded-xl border-l-2 border-primary/30 relative overflow-hidden">
+                <p class="text-xs font-mono text-on-surface-variant uppercase tracking-tighter mb-1">Toplam PnL</p>
+                <h3 id="kpi-pnl" class="font-headline text-2xl font-extrabold text-primary tracking-tight">—</h3>
+                <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary pulsate-green"></div>
+                <div class="mt-2 flex items-center text-[10px] font-medium">
+                    <span id="kpi-pnl-sub" class="font-mono text-primary/70">W/L: —</span>
+                </div>
+            </div>
+            <div class="bg-surface-container p-5 rounded-xl border-l-2 border-outline/30">
+                <p class="text-xs font-mono text-on-surface-variant uppercase tracking-tighter mb-1">Kazanma Oranı</p>
+                <h3 id="kpi-winrate" class="font-headline text-2xl font-extrabold text-on-surface tracking-tight">—</h3>
+                <p id="kpi-winrate-sub" class="text-[10px] text-on-surface-variant mt-2 font-mono uppercase">Toplam: 0 İşlem</p>
+            </div>
+            <div class="bg-surface-container p-5 rounded-xl border-l-2 border-secondary/30">
+                <p class="text-xs font-mono text-on-surface-variant uppercase tracking-tighter mb-1">Aktif Pozisyonlar</p>
+                <h3 id="kpi-active" class="font-headline text-2xl font-extrabold text-on-surface tracking-tight">0</h3>
+                <div class="w-full bg-surface-container-highest h-1 mt-3 rounded-full overflow-hidden">
+                    <div id="kpi-active-bar" class="bg-secondary h-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bento Grid Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Core Analytics (Left Column) -->
+            <div class="lg:col-span-4 space-y-6">
+                <!-- Core Performance -->
+                <div class="bg-surface-container p-6 rounded-xl space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Performans</h4>
+                        <span class="material-symbols-outlined text-on-surface-variant text-sm">insights</span>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-end border-b border-outline-variant/10 pb-3">
+                            <span class="text-xs text-on-surface-variant uppercase">Kazanma Oranı</span>
+                            <span id="perf-winrate" class="font-headline text-lg font-bold text-on-surface">—</span>
+                        </div>
+                        <div class="flex justify-between items-end border-b border-outline-variant/10 pb-3">
+                            <span class="text-xs text-on-surface-variant uppercase">En İyi İşlem</span>
+                            <span id="perf-best" class="font-headline text-lg font-bold text-secondary">—</span>
+                        </div>
+                        <div class="flex justify-between items-end border-b border-outline-variant/10 pb-3">
+                            <span class="text-xs text-on-surface-variant uppercase">En Kötü İşlem</span>
+                            <span id="perf-worst" class="font-headline text-lg font-bold text-tertiary">—</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-xs text-on-surface-variant uppercase">TP1/TP2/TP3</span>
+                            <span id="perf-tp" class="font-headline text-lg font-bold text-on-surface">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Trades -->
+                <div class="bg-surface-container p-6 rounded-xl">
+                    <div class="flex justify-between items-center mb-6">
+                        <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Aktif İşlemler</h4>
+                        <span id="active-count" class="text-[10px] font-mono text-on-surface-variant bg-surface-container-highest px-2 py-0.5 rounded">ADET: 0</span>
+                    </div>
+                    <div id="dash-active-cards" class="space-y-3">
+                        <div class="text-center py-8 text-on-surface-variant/50 text-xs font-mono">Aktif pozisyon yok</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Equity Curve & Charts (Right Column) -->
+            <div class="lg:col-span-8 space-y-6">
+                <!-- Equity Growth Chart -->
+                <div class="bg-surface-container p-6 rounded-xl min-h-[400px] flex flex-col relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Büyüme Eğrisi</h4>
+                            <p class="text-xs text-on-surface-variant font-mono">GERÇEK ZAMANLI TOPLAM VERİ</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span id="equity-total" class="font-mono text-sm font-bold text-primary"></span>
+                            <div class="flex items-center gap-2 bg-surface-container-highest rounded-full px-3 py-1">
+                                <div class="w-2 h-2 rounded-full bg-primary pulsate-green"></div>
+                                <span class="text-[10px] font-bold font-mono text-primary tracking-widest">CANLI</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="equity-chart" class="flex-1 w-full relative" style="min-height:280px;"></div>
+                    <div class="grid grid-cols-4 gap-4 mt-6 pt-6 border-t border-outline-variant/10">
+                        <div>
+                            <p class="text-[9px] font-mono text-on-surface-variant uppercase">Ort. Kazanç</p>
+                            <p id="stat-avg-win" class="text-xs font-bold font-headline text-on-surface">—</p>
+                        </div>
+                        <div>
+                            <p class="text-[9px] font-mono text-on-surface-variant uppercase">Ort. Kayıp</p>
+                            <p id="stat-avg-loss" class="text-xs font-bold font-headline text-tertiary">—</p>
+                        </div>
+                        <div>
+                            <p class="text-[9px] font-mono text-on-surface-variant uppercase">Toplam İşlem</p>
+                            <p id="stat-total-trades" class="text-xs font-bold font-headline text-on-surface">0</p>
+                        </div>
+                        <div>
+                            <p class="text-[9px] font-mono text-on-surface-variant uppercase">Aktif Marjin</p>
+                            <p id="stat-margin" class="text-xs font-bold font-headline text-secondary">$0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Positions Table (Dashboard) -->
+                <div class="bg-surface-container rounded-xl overflow-hidden">
+                    <div class="flex items-center gap-3 px-6 py-4 bg-surface-container-low">
+                        <span class="material-symbols-outlined text-sm text-on-surface-variant">swap_vert</span>
+                        <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Aktif Pozisyonlar</h4>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="dt-table">
+                            <thead><tr>
+                                <th>Zaman</th><th>Coin</th><th>Yön</th><th>Pattern</th>
+                                <th>Giriş</th><th>Şu An</th><th>PnL</th><th>Margin</th><th>Aşama</th>
+                            </tr></thead>
+                            <tbody id="dash-active-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- OrderFlow Logs -->
+                <div class="bg-surface-container rounded-xl overflow-hidden flex flex-col">
+                    <div class="flex justify-between items-center px-6 py-4 bg-surface-container-low">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-sm text-on-surface-variant">terminal</span>
+                            <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Order Flow Logları</h4>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span id="log-count" class="text-[10px] font-mono text-on-surface-variant">0 olay</span>
+                            <button onclick="clearTerminal()" class="flex items-center gap-1 text-[10px] font-mono text-on-surface-variant hover:text-on-surface transition-colors bg-surface-container-highest px-2 py-1 rounded">
+                                <span class="material-symbols-outlined text-sm">delete</span>
+                                TEMİZLE
+                            </button>
+                        </div>
+                    </div>
+                    <div id="terminal-body" class="p-4 font-mono text-[11px] leading-relaxed space-y-1 h-56 overflow-y-auto no-scrollbar" style="scroll-behavior:smooth;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ PAGE: TRADES ═══ -->
+    <div class="page hidden" id="page-trades">
+        <!-- Active Trades Full -->
+        <div class="bg-surface-container rounded-xl overflow-hidden mb-6">
+            <div class="flex items-center gap-3 px-6 py-4 bg-surface-container-low">
+                <span class="material-symbols-outlined text-sm text-primary">swap_vert</span>
+                <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Aktif Pozisyonlar</h4>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="dt-table">
+                    <thead><tr>
+                        <th>Zaman</th><th>Coin</th><th>Yön</th><th>Pattern</th><th>Grade</th>
+                        <th>Giriş</th><th>Şu An</th><th>PnL</th><th>Margin</th>
+                        <th>Aşama</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th>
+                    </tr></thead>
+                    <tbody id="active-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- History -->
+        <div class="bg-surface-container rounded-xl overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 bg-surface-container-low flex-wrap gap-3">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-sm text-on-surface-variant">history</span>
+                    <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Geçmiş İşlemler</h4>
+                </div>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <div class="flex" id="filter-tabs">
+                        <button class="filt-btn active px-3 py-1.5 text-[11px] font-semibold rounded-l-lg border bg-surface-container-highest text-primary border-outline-variant/20" onclick="setFilter('all',this)">Tümü</button>
+                        <button class="filt-btn px-3 py-1.5 text-[11px] font-semibold border-y border-r bg-surface-container text-on-surface-variant border-outline-variant/20" onclick="setFilter('closed',this)">Kapanmış</button>
+                        <button class="filt-btn px-3 py-1.5 text-[11px] font-semibold rounded-r-lg border-y border-r bg-surface-container text-on-surface-variant border-outline-variant/20" onclick="setFilter('cancelled',this)">İptal</button>
+                    </div>
+                    <input type="text" id="search-input" placeholder="Coin veya Pattern..." oninput="onSearch()"
+                        class="bg-surface-container-highest rounded-lg px-3 py-1.5 text-xs font-mono w-44 focus:outline-none focus:ring-1 focus:ring-primary/30 text-on-surface border border-outline-variant/20 transition">
+                    <div class="flex items-center gap-2 text-[11px] text-on-surface-variant">
+                        <select id="per-page" onchange="onPerPage()" class="bg-surface-container-highest rounded-lg px-2 py-1 text-xs font-mono focus:outline-none text-on-surface border border-outline-variant/20">
+                            <option value="10">10</option><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option>
+                        </select>
+                        <button class="px-2 py-1 bg-surface-container-highest rounded-lg text-xs font-semibold transition disabled:opacity-30 text-on-surface border border-outline-variant/20 hover:bg-primary hover:text-on-primary" id="pg-prev" onclick="pgPrev()">‹</button>
+                        <span id="pg-info" class="font-mono text-on-surface">1/1</span>
+                        <button class="px-2 py-1 bg-surface-container-highest rounded-lg text-xs font-semibold transition disabled:opacity-30 text-on-surface border border-outline-variant/20 hover:bg-primary hover:text-on-primary" id="pg-next" onclick="pgNext()">›</button>
+                    </div>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="dt-table">
+                    <thead><tr>
+                        <th>Zaman</th>
+                        <th class="sortable" onclick="doSort('Symbol')">Coin</th>
+                        <th class="sortable" onclick="doSort('Direction')">Yön</th>
+                        <th class="sortable" onclick="doSort('Pattern')">Pattern</th>
+                        <th>Grade</th>
+                        <th class="sortable" onclick="doSort('EntryPrice')">Giriş</th>
+                        <th>Çıkış</th><th>Margin</th>
+                        <th class="sortable" onclick="doSort('Status')">Durum</th>
+                        <th class="sortable" onclick="doSort('PnLPercent')">PnL</th>
+                    </tr></thead>
+                    <tbody id="history-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ PAGE: ANALYSIS ═══ -->
+    <div class="page hidden" id="page-analysis">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6" id="analysis-summary"></div>
+
+        <div class="bg-surface-container rounded-xl p-6 mb-6">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="material-symbols-outlined text-sm text-primary">trending_up</span>
+                <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Büyüme Eğrisi</h4>
+            </div>
+            <div id="equity-chart-lg" class="w-full" style="height:340px;"></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6" id="analysis-direction"></div>
+
+        <div class="bg-surface-container rounded-xl p-6 mb-6">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="material-symbols-outlined text-sm text-primary">pattern</span>
+                <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Pattern Performansı</h4>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="pattern-perf"></div>
+        </div>
+
+        <div class="bg-surface-container rounded-xl overflow-hidden">
+            <div class="flex items-center gap-3 px-6 py-4 bg-surface-container-low">
+                <span class="material-symbols-outlined text-sm text-on-surface-variant">currency_exchange</span>
+                <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Coin Performansı</h4>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="dt-table">
+                    <thead><tr><th>Coin</th><th>Toplam</th><th>Kazanç</th><th>Kayıp</th><th>Win Rate</th><th>Toplam PnL</th></tr></thead>
+                    <tbody id="symbol-perf-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ PAGE: PATTERNS ═══ -->
+    <div class="page hidden" id="page-patterns">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="patterns-grid"></div>
+    </div>
+
+</main>
+
+<!-- ═══ Bottom Navigation (Mobile) ═══ -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-surface-container-lowest/90 backdrop-blur-lg border-t border-outline-variant/10 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+    <a class="mob-nav nav-link-active flex flex-col items-center justify-center rounded-xl px-4 py-2 transition-transform cursor-pointer" data-page="dashboard">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="text-[10px] uppercase tracking-tighter mt-1">Panel</span>
+    </a>
+    <a class="mob-nav flex flex-col items-center justify-center text-on-surface-variant cursor-pointer" data-page="trades">
+        <span class="material-symbols-outlined">bolt</span>
+        <span class="text-[10px] uppercase tracking-tighter mt-1">İşlemler</span>
+    </a>
+    <a class="mob-nav flex flex-col items-center justify-center text-on-surface-variant cursor-pointer" data-page="analysis">
+        <span class="material-symbols-outlined">insights</span>
+        <span class="text-[10px] uppercase tracking-tighter mt-1">Analiz</span>
+    </a>
+    <a class="mob-nav flex flex-col items-center justify-center text-on-surface-variant cursor-pointer" data-page="patterns">
+        <span class="material-symbols-outlined">pattern</span>
+        <span class="text-[10px] uppercase tracking-tighter mt-1">Pattern</span>
+    </a>
 </nav>
 
-<!-- ═══════════════════════════════════════════════════════════ -->
-<!--  MAIN LAYOUT: Content Left + Terminal Right                 -->
-<!-- ═══════════════════════════════════════════════════════════ -->
-<div class="flex h-[calc(100vh-90px)]">
-
-    <!-- ── MAIN CONTENT ─────────────────────────────── -->
-    <div class="flex-1 overflow-y-auto p-5 space-y-5" id="main-scroll">
-
-        <!-- PAGE: DASHBOARD -->
-        <div class="page" id="page-dashboard">
-            <!-- KPI Row -->
-            <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-5" id="kpi-row"></div>
-
-            <!-- Equity Curve -->
-            <div class="glass rounded-xl p-4 mb-5">
-                <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-2">
-                        <div class="w-1 h-5 rounded-full" style="background:#00ff41; box-shadow:0 0 6px rgba(0,255,65,0.5);"></div>
-                        <span class="text-xs font-bold uppercase tracking-wider" style="color:#00cc33;">Equity Curve</span>
-                    </div>
-                    <span id="equity-total" class="font-mono text-sm font-bold"></span>
-                </div>
-                <div id="equity-chart" class="tv-chart-container" style="height:280px;"></div>
-            </div>
-
-            <!-- Active Positions -->
-            <div class="glass rounded-xl overflow-hidden">
-                <div class="flex items-center gap-2 px-4 pt-4 pb-2">
-                    <div class="w-1 h-5 rounded-full" style="background:#00ff41; box-shadow:0 0 6px rgba(0,255,65,0.5);"></div>
-                    <span class="text-xs font-bold uppercase tracking-wider" style="color:#00cc33;">Aktif Pozisyonlar</span>
-                    <span id="active-count" class="ml-2 badge border" style="background:rgba(0,255,65,0.06);color:#00ff41;border-color:rgba(0,255,65,0.15);">0</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="hft-table">
-                        <thead><tr>
-                            <th>Zaman</th><th>Coin</th><th>Yön</th><th>Pattern</th>
-                            <th>Giriş</th><th>Şu An</th><th>PnL</th><th>Margin</th><th>Aşama</th>
-                        </tr></thead>
-                        <tbody id="dash-active-body"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- PAGE: TRADES -->
-        <div class="page hidden" id="page-trades">
-            <!-- Active Trades Full -->
-            <div class="glass rounded-xl overflow-hidden mb-5">
-                <div class="flex items-center gap-2 px-4 pt-4 pb-2">
-                    <div class="w-1 h-5 rounded-full" style="background:#00ff41; box-shadow:0 0 6px rgba(0,255,65,0.5);"></div>
-                    <span class="text-xs font-bold uppercase tracking-wider" style="color:#00cc33;">Aktif Pozisyonlar</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="hft-table">
-                        <thead><tr>
-                            <th>Zaman</th><th>Coin</th><th>Yön</th><th>Pattern</th><th>Grade</th>
-                            <th>Giriş</th><th>Şu An</th><th>PnL</th><th>Margin</th>
-                            <th>Aşama</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th>
-                        </tr></thead>
-                        <tbody id="active-body"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- History -->
-            <div class="glass rounded-xl overflow-hidden">
-                <div class="flex items-center justify-between px-4 pt-4 pb-3 flex-wrap gap-3">
-                    <div class="flex items-center gap-2">
-                        <div class="w-1 h-5 rounded-full" style="background:#00ff41; box-shadow:0 0 6px rgba(0,255,65,0.5);"></div>
-                        <span class="text-xs font-bold uppercase tracking-wider" style="color:#00cc33;">Geçmiş İşlemler</span>
-                    </div>
-                    <div class="flex items-center gap-3 flex-wrap">
-                        <div class="flex" id="filter-tabs">
-                            <button class="filt-btn active px-3 py-1.5 text-[11px] font-semibold rounded-l-md border bg-mx-panel" style="border-color:rgba(0,255,65,0.1);color:#00cc33;" onclick="setFilter('all',this)">Tümü</button>
-                            <button class="filt-btn px-3 py-1.5 text-[11px] font-semibold border-y border-r bg-mx-panel" style="border-color:rgba(0,255,65,0.1);color:#1a5c1a;" onclick="setFilter('closed',this)">Kapanmış</button>
-                            <button class="filt-btn px-3 py-1.5 text-[11px] font-semibold rounded-r-md border-y border-r bg-mx-panel" style="border-color:rgba(0,255,65,0.1);color:#1a5c1a;" onclick="setFilter('cancelled',this)">İptal</button>
-                        </div>
-                        <input type="text" id="search-input" placeholder="Coin veya Pattern..." oninput="onSearch()"
-                            class="bg-mx-panel rounded-md px-3 py-1.5 text-xs font-mono w-44 focus:outline-none transition" style="border:1px solid rgba(0,255,65,0.1);color:#00ff41;" onfocus="this.style.borderColor='rgba(0,255,65,0.3)'" onblur="this.style.borderColor='rgba(0,255,65,0.1)'">
-                        <div class="flex items-center gap-2 text-[11px]" style="color:#1a5c1a;">
-                            <select id="per-page" onchange="onPerPage()" class="bg-mx-panel rounded px-2 py-1 text-xs font-mono focus:outline-none" style="border:1px solid rgba(0,255,65,0.1);color:#00cc33;">
-                                <option value="10">10</option><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option>
-                            </select>
-                            <button class="px-2 py-1 bg-mx-panel rounded text-xs font-semibold transition disabled:opacity-30" style="border:1px solid rgba(0,255,65,0.1);color:#00cc33;" onmouseover="this.style.background='#00ff41';this.style.color='#000'" onmouseout="this.style.background='';this.style.color='#00cc33'" id="pg-prev" onclick="pgPrev()">‹</button>
-                            <span id="pg-info" class="font-mono" style="color:#00cc33;">1/1</span>
-                            <button class="px-2 py-1 bg-mx-panel rounded text-xs font-semibold transition disabled:opacity-30" style="border:1px solid rgba(0,255,65,0.1);color:#00cc33;" onmouseover="this.style.background='#00ff41';this.style.color='#000'" onmouseout="this.style.background='';this.style.color='#00cc33'" id="pg-next" onclick="pgNext()">›</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="hft-table">
-                        <thead><tr>
-                            <th>Zaman</th>
-                            <th class="sortable" onclick="doSort('Symbol')">Coin</th>
-                            <th class="sortable" onclick="doSort('Direction')">Yön</th>
-                            <th class="sortable" onclick="doSort('Pattern')">Pattern</th>
-                            <th>Grade</th>
-                            <th class="sortable" onclick="doSort('EntryPrice')">Giriş</th>
-                            <th>Çıkış</th><th>Margin</th>
-                            <th class="sortable" onclick="doSort('Status')">Durum</th>
-                            <th class="sortable" onclick="doSort('PnLPercent')">PnL</th>
-                        </tr></thead>
-                        <tbody id="history-body"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- PAGE: ANALYSIS -->
-        <div class="page hidden" id="page-analysis">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5" id="analysis-summary"></div>
-
-            <div class="glass rounded-xl p-4 mb-5">
-                <div class="flex items-center gap-2 mb-3">
-                    <div class="w-1 h-5 rounded-full" style="background:#00ff41; box-shadow:0 0 6px rgba(0,255,65,0.5);"></div>
-                    <span class="text-xs font-bold uppercase tracking-wider" style="color:#00cc33;">Büyüme Eğrisi</span>
-                </div>
-                <div id="equity-chart-lg" class="tv-chart-container" style="height:340px;"></div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5" id="analysis-direction"></div>
-
-            <div class="glass rounded-xl p-4 mb-5">
-                <div class="flex items-center gap-2 mb-3">
-                    <div class="w-1 h-5 rounded-full" style="background:#00ff41; box-shadow:0 0 6px rgba(0,255,65,0.5);"></div>
-                    <span class="text-xs font-bold uppercase tracking-wider" style="color:#00cc33;">Pattern Performansı</span>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="pattern-perf"></div>
-            </div>
-
-            <div class="glass rounded-xl overflow-hidden">
-                <div class="flex items-center gap-2 px-4 pt-4 pb-2">
-                    <div class="w-1 h-5 rounded-full" style="background:#00ff41; box-shadow:0 0 6px rgba(0,255,65,0.5);"></div>
-                    <span class="text-xs font-bold uppercase tracking-wider" style="color:#00cc33;">Coin Performansı</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="hft-table">
-                        <thead><tr><th>Coin</th><th>Toplam</th><th>Kazanç</th><th>Kayıp</th><th>Win Rate</th><th>Toplam PnL</th></tr></thead>
-                        <tbody id="symbol-perf-body"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- PAGE: PATTERNS -->
-        <div class="page hidden" id="page-patterns">
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" id="patterns-grid"></div>
-        </div>
-
-    </div>
-
-    <!-- ── LIVE TERMINAL (Order Flow Log) ───────────── -->
-    <div class="w-80 xl:w-96 flex-shrink-0 flex flex-col bg-mx-card" style="border-left:1px solid rgba(0,255,65,0.08);">
-        <div class="flex items-center justify-between px-4 py-2.5" style="border-bottom:1px solid rgba(0,255,65,0.08);">
-            <div class="flex items-center gap-2">
-                <i data-lucide="terminal" class="w-3.5 h-3.5" style="color:#00ff41;"></i>
-                <span class="text-[11px] font-bold uppercase tracking-wider" style="color:#00cc33;">Order Flow Log</span>
-            </div>
-            <div class="flex items-center gap-2">
-                <span id="log-count" class="font-mono text-[10px]" style="color:#1a5c1a;">0 events</span>
-                <button onclick="clearTerminal()" class="transition" style="color:#1a5c1a;" onmouseover="this.style.color='#00ff41'" onmouseout="this.style.color='#1a5c1a'" title="Temizle">
-                    <i data-lucide="trash-2" class="w-3 h-3"></i>
-                </button>
-            </div>
-        </div>
-        <div id="terminal-body" class="flex-1 overflow-y-auto px-3 py-2 font-mono text-[11px] leading-5 space-y-0.5" style="scroll-behavior:smooth;background:#000000;"></div>
-    </div>
-
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════ -->
-<!--  TOOLTIP OVERLAY                                            -->
-<!-- ═══════════════════════════════════════════════════════════ -->
-<div id="tooltip-overlay" class="fixed z-[9999] hidden max-w-sm p-4 glass rounded-lg text-xs font-mono leading-relaxed shadow-2xl pointer-events-none" style="border-color:rgba(0,255,65,0.15);"></div>
+<!-- ═══ Tooltip Overlay ═══ -->
+<div id="tooltip-overlay" class="fixed z-[9999] hidden max-w-sm p-4 glass-panel rounded-xl text-xs font-mono leading-relaxed shadow-2xl pointer-events-none border border-primary/20"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -342,45 +485,78 @@ const startTime = Date.now();
 // ═══════════════════════════════════════════════════════════
 function updateClock(){
     const now = new Date();
-    document.getElementById('clock').textContent = now.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const el = document.getElementById('clock');
+    if(el) el.textContent = now.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
     const upSec = Math.floor((Date.now() - startTime)/1000);
     const h=Math.floor(upSec/3600), m=Math.floor((upSec%3600)/60), s=upSec%60;
-    document.getElementById('uptime').textContent = `UP ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    const uel = document.getElementById('uptime');
+    if(uel) uel.textContent = `UP ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 updateClock(); setInterval(updateClock, 1000);
 
 // ═══════════════════════════════════════════════════════════
-//  NAVIGATION
+//  NAVIGATION (Sidebar + Mobile)
 // ═══════════════════════════════════════════════════════════
-document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('nav-active'); b.style.color='#1a5c1a'; });
-        btn.classList.add('nav-active');
-        document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
-        document.getElementById('page-'+btn.dataset.page).classList.remove('hidden');
-        if(btn.dataset.page === 'analysis') renderAnalysisPage();
-        if(btn.dataset.page === 'patterns') renderPatternsPage();
+function navigateTo(page) {
+    // Sidebar nav
+    document.querySelectorAll('.nav-link').forEach(b => {
+        b.classList.remove('nav-link-active');
+        b.classList.add('text-on-surface-variant');
     });
+    document.querySelectorAll(`.nav-link[data-page="${page}"]`).forEach(b => {
+        b.classList.add('nav-link-active');
+        b.classList.remove('text-on-surface-variant');
+    });
+    // Mobile nav
+    document.querySelectorAll('.mob-nav').forEach(b => {
+        b.classList.remove('nav-link-active');
+        b.classList.add('text-on-surface-variant');
+    });
+    document.querySelectorAll(`.mob-nav[data-page="${page}"]`).forEach(b => {
+        b.classList.add('nav-link-active');
+        b.classList.remove('text-on-surface-variant');
+    });
+    // Pages
+    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+    const target = document.getElementById('page-'+page);
+    if(target) target.classList.remove('hidden');
+    if(page === 'analysis') renderAnalysisPage();
+    if(page === 'patterns') renderPatternsPage();
+}
+document.querySelectorAll('.nav-link, .mob-nav').forEach(btn => {
+    btn.addEventListener('click', () => navigateTo(btn.dataset.page));
 });
 
 // ═══════════════════════════════════════════════════════════
-//  TERMINAL LOG
+//  TERMINAL LOG (OrderFlow)
 // ═══════════════════════════════════════════════════════════
 function termLog(msg, level='info'){
     const el = document.getElementById('terminal-body');
+    if(!el) return;
     const ts = new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:3});
-    const colors = { info:'color:#1a5c1a', success:'color:#00ff41', warn:'color:#ffaa00', error:'color:#ff3366', signal:'color:#00ff41', exec:'color:#00cc33' };
+    const colors = {
+        info:'text-on-surface-variant/50', success:'text-primary', warn:'text-tertiary',
+        error:'text-error', signal:'text-primary', exec:'text-secondary'
+    };
     const prefix = { info:'INF', success:'OK ', warn:'WRN', error:'ERR', signal:'SIG', exec:'EXC' };
-    const line = document.createElement('div');
-    line.className = 'flex gap-2';
-    line.innerHTML = `<span style="color:#0d1a0d;" class="flex-shrink-0">${ts}</span><span style="${colors[level]||colors.info}" class="font-bold flex-shrink-0">[${prefix[level]||'INF'}]</span><span style="color:#00cc33;" class="break-all">${msg}</span>`;
+    const colorCls = colors[level] || colors.info;
+    const line = document.createElement('p');
+    line.className = 'text-on-surface-variant/50';
+    line.innerHTML = `<span class="text-secondary">[${ts}]</span> <span class="${colorCls} font-bold">[${prefix[level]||'INF'}]</span> <span class="text-on-surface-variant">${msg}</span>`;
     el.appendChild(line);
     logCount++;
-    document.getElementById('log-count').textContent = logCount + ' events';
+    const lc = document.getElementById('log-count');
+    if(lc) lc.textContent = logCount + ' olay';
     while(el.children.length > 500) el.removeChild(el.firstChild);
     el.scrollTop = el.scrollHeight;
 }
-function clearTerminal(){ document.getElementById('terminal-body').innerHTML=''; logCount=0; document.getElementById('log-count').textContent='0 events'; }
+function clearTerminal(){
+    const el = document.getElementById('terminal-body');
+    if(el) el.innerHTML='';
+    logCount=0;
+    const lc = document.getElementById('log-count');
+    if(lc) lc.textContent='0 olay';
+}
 
 // ═══════════════════════════════════════════════════════════
 //  WEBSOCKET CLIENT
@@ -401,7 +577,6 @@ function connectWebSocket(){
     ws.onopen = () => {
         setWsStatus('online');
         termLog('WebSocket bağlantısı kuruldu', 'success');
-        // Stop REST polling if it was running
         if(restInterval) { clearInterval(restInterval); restInterval = null; termLog('REST polling durduruldu, WS aktif', 'info'); }
     };
 
@@ -431,27 +606,60 @@ function handleWsMessage(data){
     if(data.type === 'log') {
         termLog(data.message, data.level || 'info');
     } else if(data.type === 'trade_update') {
-        termLog('Trade update alındı', 'exec');
+        termLog('İşlem güncellemesi alındı', 'exec');
         fetchData();
     } else if(data.type === 'stats_update') {
         if(data.payload) { stats = data.payload; renderDashboard(); }
     } else if(data.type === 'active_update') {
-        if(data.payload) { activeTrades = data.payload; renderDashActive(); renderActiveTrades(); }
+        if(data.payload) { activeTrades = data.payload; renderDashActive(); renderDashActiveCards(); renderActiveTrades(); }
     }
 }
 
 function setWsStatus(status){
     const dot = document.getElementById('ws-dot');
     const label = document.getElementById('ws-label');
+    const liveDot = document.getElementById('live-status-dot');
+    const liveLabel = document.getElementById('live-status-label');
+    const liveBadge = document.getElementById('live-status-badge');
+    const sidebarDot = document.getElementById('sidebar-status-dot');
+    const sidebarText = document.getElementById('sidebar-status-text');
+
     if(status === 'online'){
-        dot.style.background='#00ff41'; dot.style.color='#00ff41';
-        label.textContent = 'WS LIVE'; label.style.color='#00ff41';
+        if(dot) { dot.style.background='#4edea3'; }
+        if(label) { label.textContent = 'WS CANLI'; label.className='text-[10px] font-mono text-primary uppercase tracking-widest'; }
+        if(liveDot) { liveDot.className='w-1.5 h-1.5 rounded-full bg-primary pulsate-green'; }
+        if(liveLabel) { liveLabel.textContent='CANLI'; liveLabel.className='text-[10px] font-mono text-primary uppercase'; }
+        if(liveBadge) { liveBadge.className='flex items-center gap-2 bg-primary/10 px-2 py-1 rounded'; }
+        if(sidebarDot) { sidebarDot.className='w-2 h-2 rounded-full bg-primary pulsate-green'; }
+        if(sidebarText) { sidebarText.textContent='BAĞLANTI_AKTİF'; sidebarText.className='text-[11px] text-primary mt-1 font-mono'; }
     } else if(status === 'offline'){
-        dot.style.background='#ff3366'; dot.style.color='#ff3366';
-        label.textContent = 'WS OFF'; label.style.color='#1a5c1a';
+        if(dot) { dot.style.background='#ffb3ad'; }
+        if(label) { label.textContent = 'WS KAPALI'; label.className='text-[10px] font-mono text-error uppercase tracking-widest'; }
+        if(liveDot) { liveDot.className='w-1.5 h-1.5 rounded-full bg-error pulsate-green'; }
+        if(liveLabel) { liveLabel.textContent='BAĞLANTI KESİK'; liveLabel.className='text-[10px] font-mono text-error uppercase'; }
+        if(liveBadge) { liveBadge.className='flex items-center gap-2 bg-error/10 px-2 py-1 rounded'; }
+        if(sidebarDot) { sidebarDot.className='w-2 h-2 rounded-full bg-error pulsate-green'; }
+        if(sidebarText) { sidebarText.textContent='BAĞLANTI_KESİK'; sidebarText.className='text-[11px] text-error mt-1 font-mono'; }
     } else {
-        dot.style.background='#ffaa00'; dot.style.color='#ffaa00';
-        label.textContent = 'BAĞLANIYOR'; label.style.color='#1a5c1a';
+        if(dot) { dot.style.background='#ffb3ad'; }
+        if(label) { label.textContent = 'WS BAĞLANIYOR'; label.className='text-[10px] font-mono text-tertiary uppercase tracking-widest'; }
+        if(liveDot) { liveDot.className='w-1.5 h-1.5 rounded-full bg-tertiary pulsate-green'; }
+        if(liveLabel) { liveLabel.textContent='BAĞLANIYOR'; liveLabel.className='text-[10px] font-mono text-tertiary uppercase'; }
+        if(liveBadge) { liveBadge.className='flex items-center gap-2 bg-tertiary/10 px-2 py-1 rounded'; }
+        if(sidebarDot) { sidebarDot.className='w-2 h-2 rounded-full bg-tertiary pulsate-green'; }
+        if(sidebarText) { sidebarText.textContent='BAĞLANIYOR...'; sidebarText.className='text-[11px] text-tertiary mt-1 font-mono'; }
+    }
+}
+
+function setApiStatus(status){
+    const dot = document.getElementById('api-dot');
+    const label = document.getElementById('api-label');
+    if(status === 'online'){
+        if(dot) dot.style.background='#4edea3';
+        if(label) { label.textContent='REST API AKTİF'; label.className='text-[10px] font-mono text-primary uppercase tracking-widest'; }
+    } else {
+        if(dot) dot.style.background='#ffb3ad';
+        if(label) { label.textContent='REST API HATA'; label.className='text-[10px] font-mono text-error uppercase tracking-widest'; }
     }
 }
 
@@ -459,7 +667,7 @@ let restInterval = null;
 function startRestPolling(){
     if(restInterval) return;
     restInterval = setInterval(fetchData, 5000);
-    termLog('REST polling aktif (5s interval)', 'warn');
+    termLog('REST polling aktif (5s aralık)', 'warn');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -477,12 +685,11 @@ async function fetchData(){
         patterns.forEach(p => { patternDescMap[p.name] = { direction: p.direction, description: p.description }; });
         tradeMap = {}; allTrades.forEach(t => { tradeMap[t.ID] = t; });
 
-        document.getElementById('api-dot').style.background = '#00ff41'; document.getElementById('api-dot').style.color = '#00ff41';
-
+        setApiStatus('online');
         renderDashboard(); renderActiveTrades(); renderHistory();
     } catch(e) {
         console.error('Fetch error:', e);
-        document.getElementById('api-dot').style.background = '#ff3366'; document.getElementById('api-dot').style.color = '#ff3366';
+        setApiStatus('offline');
         termLog('REST API hatası: ' + e.message, 'error');
     }
 }
@@ -495,45 +702,46 @@ function fmtDate(s){ if(!s) return '—'; const d=new Date(s); return d.toLocale
 function fmtShortDate(s){ if(!s) return '—'; const d=new Date(s); return d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); }
 function fmtDuration(a,b){ if(!a||!b) return '—'; const s=Math.floor((new Date(b)-new Date(a))/1000); if(s<0) return '—'; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60; if(h>0) return h+'sa '+m+'dk'; if(m>0) return m+'dk '+sec+'sn'; return sec+'sn'; }
 function pnlStr(v){ return (v>=0?'+':'')+v.toFixed(2)+'%'; }
-function pnlColor(v){ return v>=0 ? 'color:#00ff41;text-shadow:0 0 8px rgba(0,255,65,0.4)' : 'color:#ff3366;text-shadow:0 0 8px rgba(255,51,102,0.4)'; }
+function pnlColor(v){ return v>=0 ? 'color:#4edea3' : 'color:#ffb3ad'; }
+function pnlClass(v){ return v>=0 ? 'text-primary' : 'text-tertiary'; }
 function livePnl(t){ const avg=t.AvgEntryPrice||t.EntryPrice; if(!avg||!t.CurrentPrice) return 0; return t.Direction==='LONG'?(t.CurrentPrice-avg)/avg*100:(avg-t.CurrentPrice)/avg*100; }
 function nearEq(a,b){ if(!a||!b) return false; return Math.abs(a-b)<=Math.max(Math.abs(a),Math.abs(b),1e-9)*0.001; }
 
 function dirBadge(d){
-    if(d==='LONG') return '<span class="badge" style="background:rgba(0,255,65,0.08);color:#00ff41;border:1px solid rgba(0,255,65,0.2);">LONG</span>';
-    return '<span class="badge" style="background:rgba(255,51,102,0.08);color:#ff3366;border:1px solid rgba(255,51,102,0.2);">SHORT</span>';
+    if(d==='LONG') return '<span class="badge bg-primary/10 text-primary border border-primary/20">LONG</span>';
+    return '<span class="badge bg-tertiary/10 text-tertiary border border-tertiary/20">SHORT</span>';
 }
 function gradeBadge(g){
-    if(g==='A+') return '<span class="badge" style="background:rgba(0,255,65,0.12);color:#00ff41;border:1px solid rgba(0,255,65,0.25);text-shadow:0 0 6px rgba(0,255,65,0.4);">A+</span>';
-    return '<span class="badge" style="background:rgba(0,255,65,0.06);color:#00cc33;border:1px solid rgba(0,255,65,0.15);">'+g+'</span>';
+    if(g==='A+') return '<span class="badge bg-primary/15 text-primary border border-primary/25">A+</span>';
+    return '<span class="badge bg-primary/8 text-primary/80 border border-primary/15">'+g+'</span>';
 }
 function statusBadge(s){
     const map = {
-        'ACTIVE': 'background:rgba(0,255,65,0.08);color:#00ff41;border-color:rgba(0,255,65,0.2)',
-        'PENDING': 'background:rgba(255,170,0,0.08);color:#ffaa00;border-color:rgba(255,170,0,0.2)',
-        'TP1_HIT': 'background:rgba(0,255,65,0.10);color:#00ff41;border-color:rgba(0,255,65,0.25)',
-        'TP2_HIT': 'background:rgba(0,255,65,0.12);color:#00ff41;border-color:rgba(0,255,65,0.3)',
-        'TP3_HIT': 'background:rgba(0,255,65,0.15);color:#00ff41;border-color:rgba(0,255,65,0.35);text-shadow:0 0 8px rgba(0,255,65,0.5)',
-        'STOPPED': 'background:rgba(255,51,102,0.08);color:#ff3366;border-color:rgba(255,51,102,0.2)',
-        'CANCELLED': 'background:rgba(26,92,26,0.1);color:#1a5c1a;border-color:rgba(26,92,26,0.2)',
+        'ACTIVE': 'bg-primary/10 text-primary border-primary/20',
+        'PENDING': 'bg-tertiary/10 text-tertiary border-tertiary/20',
+        'TP1_HIT': 'bg-primary/12 text-primary border-primary/25',
+        'TP2_HIT': 'bg-primary/15 text-primary border-primary/30',
+        'TP3_HIT': 'bg-primary/18 text-primary border-primary/35',
+        'STOPPED': 'bg-error/10 text-error border-error/20',
+        'CANCELLED': 'bg-outline/10 text-outline border-outline/20',
     };
-    return `<span class="badge" style="${map[s]||map['CANCELLED']};border:1px solid;">${s}</span>`;
+    return `<span class="badge border ${map[s]||map['CANCELLED']}">${s}</span>`;
 }
 function phaseStr(p){
     const m = {
-        'WAITING_TP1':'<span class="badge" style="background:rgba(0,255,65,0.06);color:#00cc33;border:1px solid rgba(0,255,65,0.15);">TP1 ⏳</span>',
-        'WAITING_TP2':'<span class="badge" style="background:rgba(0,255,65,0.10);color:#00ff41;border:1px solid rgba(0,255,65,0.2);">TP2 ⏳</span>',
-        'WAITING_TP3':'<span class="badge" style="background:rgba(0,255,65,0.14);color:#00ff41;border:1px solid rgba(0,255,65,0.3);">TP3 ⏳</span>',
-        'DONE':'<span class="badge" style="background:rgba(0,255,65,0.15);color:#00ff41;border:1px solid rgba(0,255,65,0.35);text-shadow:0 0 6px rgba(0,255,65,0.5);">✓ DONE</span>',
+        'WAITING_TP1':'<span class="badge bg-primary/8 text-primary/80 border border-primary/15">TP1 ⏳</span>',
+        'WAITING_TP2':'<span class="badge bg-primary/12 text-primary border border-primary/20">TP2 ⏳</span>',
+        'WAITING_TP3':'<span class="badge bg-primary/15 text-primary border border-primary/30">TP3 ⏳</span>',
+        'DONE':'<span class="badge bg-primary/18 text-primary border border-primary/35">✓ TAMAMLANDI</span>',
     };
-    return m[p] || '<span style="color:#1a5c1a;">—</span>';
+    return m[p] || '<span class="text-outline">—</span>';
 }
 function slCell(t){
-    if(!t.StopLoss) return '<span style="color:#1a5c1a;">—</span>';
+    if(!t.StopLoss) return '<span class="text-outline">—</span>';
     const base = '$'+fmtP(t.StopLoss);
     const avg=t.AvgEntryPrice||t.EntryPrice;
-    if(nearEq(t.StopLoss,t.TP1)) return base+'<span class="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded" style="color:#ffaa00;background:rgba(255,170,0,0.08);">TP1</span>';
-    if(nearEq(t.StopLoss,avg)) return base+'<span class="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded" style="color:#00cc33;background:rgba(0,255,65,0.06);">BE</span>';
+    if(nearEq(t.StopLoss,t.TP1)) return base+'<span class="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-tertiary/10 text-tertiary">TP1</span>';
+    if(nearEq(t.StopLoss,avg)) return base+'<span class="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary">BE</span>';
     return base;
 }
 
@@ -555,42 +763,92 @@ function renderDashboard(){
     const wrStr = closed > 0 ? s.WinRate.toFixed(1)+'%' : '—';
     const pnlVal = s.TotalPnL || 0;
 
-    const kpis = [
-        { label:'WIN RATE', value:wrStr, style:'color:#00ff41;text-shadow:0 0 15px rgba(0,255,65,0.5)', icon:'target' },
-        { label:'TOPLAM PnL', value:pnlStr(pnlVal), style:pnlColor(pnlVal), icon:'trending-up' },
-        { label:'TOPLAM İŞLEM', value:s.TotalTrades||0, style:'color:#00cc33', icon:'hash' },
-        { label:'AKTİF', value:s.ActiveTrades||0, style:'color:#00ff41', icon:'activity', sub:s.TotalMargin?'$'+s.TotalMargin.toFixed(0)+' marjin':'' },
-        { label:'W / L', value:(s.WinTrades||0)+' / '+(s.LossTrades||0), style:'color:#00cc33', icon:'swords', sub:s.CancelledTrades?s.CancelledTrades+' iptal':'' },
-        { label:'EN İYİ', value:s.BestTrade?'+'+s.BestTrade.toFixed(2)+'%':'—', style:'color:#00ff41;text-shadow:0 0 10px rgba(0,255,65,0.4)', icon:'arrow-up-right' },
-        { label:'TP1/TP2/TP3', value:(s.TP1Count||0)+'/'+(s.TP2Count||0)+'/'+(s.TP3Count||0), style:'color:#00cc33', icon:'layers' },
-    ];
+    // KPI Cards
+    const eqEl = document.getElementById('kpi-equity');
+    if(eqEl) { eqEl.textContent = s.TotalMargin ? '$' + s.TotalMargin.toFixed(0) : '—'; }
+    const eqSub = document.getElementById('kpi-equity-sub');
+    if(eqSub) { eqSub.textContent = (s.ActiveTrades||0) + ' aktif pozisyon'; }
 
-    document.getElementById('kpi-row').innerHTML = kpis.map(k =>
-        `<div class="glass rounded-xl p-4 glass-hover stat-glow relative overflow-hidden group">
-            <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] font-bold uppercase tracking-wider" style="color:#1a5c1a;">${k.label}</span>
-                <i data-lucide="${k.icon}" class="w-3.5 h-3.5 transition" style="color:#0d1a0d;"></i>
-            </div>
-            <div class="font-mono text-xl font-extrabold tracking-tight" style="${k.style}">${k.value}</div>
-            ${k.sub ? `<div class="text-[10px] mt-1 font-medium" style="color:#1a5c1a;">${k.sub}</div>` : ''}
-        </div>`
-    ).join('');
+    const pnlEl = document.getElementById('kpi-pnl');
+    if(pnlEl) { pnlEl.textContent = pnlStr(pnlVal); pnlEl.className = 'font-headline text-2xl font-extrabold tracking-tight ' + pnlClass(pnlVal); }
+    const pnlSub = document.getElementById('kpi-pnl-sub');
+    if(pnlSub) { pnlSub.textContent = 'W/L: ' + (s.WinTrades||0) + '/' + (s.LossTrades||0) + (s.CancelledTrades ? ' · ' + s.CancelledTrades + ' iptal' : ''); }
 
-    document.getElementById('active-count').textContent = activeTrades ? activeTrades.length : 0;
+    const wrEl = document.getElementById('kpi-winrate');
+    if(wrEl) { wrEl.textContent = wrStr; }
+    const wrSub = document.getElementById('kpi-winrate-sub');
+    if(wrSub) { wrSub.textContent = 'TOPLAM: ' + (s.TotalTrades||0) + ' İŞLEM'; }
+
+    const actEl = document.getElementById('kpi-active');
+    if(actEl) { actEl.textContent = s.ActiveTrades||0; }
+    const actBar = document.getElementById('kpi-active-bar');
+    if(actBar) { actBar.style.width = Math.min((s.ActiveTrades||0)*10, 100) + '%'; }
+
+    // Performance panel
+    const perfWr = document.getElementById('perf-winrate');
+    if(perfWr) { perfWr.textContent = wrStr; }
+    const perfBest = document.getElementById('perf-best');
+    if(perfBest) { perfBest.textContent = s.BestTrade ? '+'+s.BestTrade.toFixed(2)+'%' : '—'; }
+    const perfWorst = document.getElementById('perf-worst');
+    if(perfWorst) { perfWorst.textContent = s.WorstTrade ? s.WorstTrade.toFixed(2)+'%' : '—'; }
+    const perfTp = document.getElementById('perf-tp');
+    if(perfTp) { perfTp.textContent = (s.TP1Count||0)+'/'+(s.TP2Count||0)+'/'+(s.TP3Count||0); }
+
+    // Bottom stats
+    const stAvgWin = document.getElementById('stat-avg-win');
+    if(stAvgWin) { stAvgWin.textContent = s.AvgWin ? '+'+s.AvgWin.toFixed(2)+'%' : '—'; }
+    const stAvgLoss = document.getElementById('stat-avg-loss');
+    if(stAvgLoss) { stAvgLoss.textContent = s.AvgLoss ? s.AvgLoss.toFixed(2)+'%' : '—'; }
+    const stTotal = document.getElementById('stat-total-trades');
+    if(stTotal) { stTotal.textContent = s.TotalTrades || 0; }
+    const stMargin = document.getElementById('stat-margin');
+    if(stMargin) { stMargin.textContent = '$' + (s.TotalMargin||0).toFixed(0); }
+
+    // Active count
+    const ac = document.getElementById('active-count');
+    if(ac) ac.textContent = 'ADET: ' + (activeTrades ? activeTrades.length : 0);
 
     renderDashActive();
+    renderDashActiveCards();
     drawEquityChart('equity-chart', false);
     const el = document.getElementById('equity-total');
-    el.textContent = pnlStr(pnlVal);
-    el.style.cssText = `font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;${pnlColor(pnlVal)}`;
+    if(el) { el.textContent = pnlStr(pnlVal); el.style.cssText = pnlColor(pnlVal); }
+}
 
-    lucide.createIcons();
+function renderDashActiveCards(){
+    const container = document.getElementById('dash-active-cards');
+    if(!container) return;
+    if(!activeTrades || !activeTrades.length){
+        container.innerHTML = '<div class="text-center py-8 text-on-surface-variant/50 text-xs font-mono">Aktif pozisyon yok</div>';
+        return;
+    }
+    const sorted = [...activeTrades].sort((a,b) => new Date(b.OpenedAt) - new Date(a.OpenedAt)).slice(0,5);
+    container.innerHTML = sorted.map(t => {
+        const pnl = livePnl(t);
+        const isLong = t.Direction === 'LONG';
+        const iconName = t.Symbol.includes('BTC') ? 'currency_bitcoin' : t.Symbol.includes('ETH') ? 'token' : 'toll';
+        const iconColor = isLong ? 'text-primary' : 'text-secondary';
+        const elapsed = fmtDuration(t.OpenedAt, new Date().toISOString());
+        return `<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center">
+                    <span class="material-symbols-outlined ${iconColor} text-sm">${iconName}</span>
+                </div>
+                <div>
+                    <p class="text-xs font-bold font-headline">${t.Symbol}</p>
+                    <span class="text-[9px] font-mono ${isLong?'text-primary':'text-tertiary'} uppercase">${t.Direction} · ${elapsed}</span>
+                </div>
+            </div>
+            <span class="text-xs font-mono font-bold ${pnlClass(pnl)}">${pnlStr(pnl)}</span>
+        </div>`;
+    }).join('');
 }
 
 function renderDashActive(){
     const tbody = document.getElementById('dash-active-body');
+    if(!tbody) return;
     if(!activeTrades || !activeTrades.length){
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-12" style="color:#1a5c1a;"><div class="text-3xl mb-3 opacity-30">📡</div>Aktif pozisyon yok</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-12 text-on-surface-variant/50"><div class="text-3xl mb-3 opacity-30">📡</div>Aktif pozisyon yok</td></tr>`;
         return;
     }
     const sorted = [...activeTrades].sort((a,b) => new Date(b.OpenedAt) - new Date(a.OpenedAt));
@@ -600,14 +858,14 @@ function renderDashActive(){
         const flashDir = prevPnl !== undefined ? (pnl > prevPnl ? 'up' : pnl < prevPnl ? 'down' : '') : '';
         prevPnlMap[t.ID] = pnl;
         return `<tr>
-            <td style="color:#1a5c1a;">${fmtShortDate(t.OpenedAt)}</td>
-            <td class="font-bold" style="color:#00ff41;">${t.Symbol}</td>
+            <td class="text-on-surface-variant">${fmtShortDate(t.OpenedAt)}</td>
+            <td class="font-bold text-primary">${t.Symbol}</td>
             <td>${dirBadge(t.Direction)}</td>
-            <td style="color:#00cc33;">${t.Pattern}</td>
-            <td style="color:#00cc33;">$${fmtP(t.AvgEntryPrice||t.EntryPrice)}</td>
-            <td style="color:#00ff41;">$${fmtP(t.CurrentPrice)}</td>
+            <td class="text-on-surface-variant">${t.Pattern}</td>
+            <td class="text-on-surface-variant">$${fmtP(t.AvgEntryPrice||t.EntryPrice)}</td>
+            <td class="text-on-surface">$${fmtP(t.CurrentPrice)}</td>
             <td class="font-bold" style="${pnlColor(pnl)}" data-flash="${flashDir}" data-tid="${t.ID}">${pnlStr(pnl)}</td>
-            <td style="color:#00cc33;">$${(t.MarginUsed||0).toFixed(0)}</td>
+            <td class="text-on-surface-variant">$${(t.MarginUsed||0).toFixed(0)}</td>
             <td>${phaseStr(t.TPPhase)}</td>
         </tr>`;
     }).join('');
@@ -619,12 +877,13 @@ function renderDashActive(){
 }
 
 // ═══════════════════════════════════════════════════════════
-//  ACTIVE TRADES (Full)
+//  ACTIVE TRADES (Full - Trades page)
 // ═══════════════════════════════════════════════════════════
 function renderActiveTrades(){
     const tbody = document.getElementById('active-body');
+    if(!tbody) return;
     if(!activeTrades || !activeTrades.length){
-        tbody.innerHTML = `<tr><td colspan="14" class="text-center py-12" style="color:#1a5c1a;"><div class="text-3xl mb-3 opacity-30">📡</div>Aktif pozisyon yok</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="14" class="text-center py-12 text-on-surface-variant/50"><div class="text-3xl mb-3 opacity-30">📡</div>Aktif pozisyon yok</td></tr>`;
         return;
     }
     const sorted = [...activeTrades].sort((a,b) => new Date(b.OpenedAt) - new Date(a.OpenedAt));
@@ -632,20 +891,20 @@ function renderActiveTrades(){
         const pnl = livePnl(t);
         const avg = t.AvgEntryPrice || t.EntryPrice;
         return `<tr>
-            <td style="color:#1a5c1a;">${fmtShortDate(t.OpenedAt)}</td>
-            <td class="font-bold" style="color:#00ff41;">${t.Symbol}</td>
+            <td class="text-on-surface-variant">${fmtShortDate(t.OpenedAt)}</td>
+            <td class="font-bold text-primary">${t.Symbol}</td>
             <td>${dirBadge(t.Direction)}</td>
-            <td style="color:#00cc33;">${t.Pattern}</td>
+            <td class="text-on-surface-variant">${t.Pattern}</td>
             <td>${gradeBadge(t.Grade)}</td>
-            <td style="color:#00cc33;">$${fmtP(avg)}</td>
-            <td style="color:#00ff41;">$${fmtP(t.CurrentPrice)}</td>
+            <td class="text-on-surface-variant">$${fmtP(avg)}</td>
+            <td class="text-on-surface">$${fmtP(t.CurrentPrice)}</td>
             <td class="font-bold" style="${pnlColor(pnl)}">${pnlStr(pnl)}</td>
-            <td style="color:#00cc33;">$${(t.MarginUsed||0).toFixed(0)}</td>
+            <td class="text-on-surface-variant">$${(t.MarginUsed||0).toFixed(0)}</td>
             <td>${phaseStr(t.TPPhase)}</td>
             <td>${slCell(t)}</td>
-            <td style="color:#00cc33;">$${fmtP(t.TP1)}</td>
-            <td style="color:#00cc33;">$${fmtP(t.TP2)}</td>
-            <td style="color:#00cc33;">$${fmtP(t.TP3)}</td>
+            <td class="text-on-surface-variant">$${fmtP(t.TP1)}</td>
+            <td class="text-on-surface-variant">$${fmtP(t.TP2)}</td>
+            <td class="text-on-surface-variant">$${fmtP(t.TP3)}</td>
         </tr>`;
     }).join('');
 }
@@ -668,14 +927,18 @@ function getFiltered(){
 }
 function renderHistory(){
     const tbody = document.getElementById('history-body');
+    if(!tbody) return;
     const list = getFiltered();
     const pages = Math.ceil(list.length/perPage) || 1;
     if(curPage > pages) curPage = pages;
-    document.getElementById('pg-info').textContent = curPage + '/' + pages;
-    document.getElementById('pg-prev').disabled = curPage === 1;
-    document.getElementById('pg-next').disabled = curPage === pages;
+    const pgInfo = document.getElementById('pg-info');
+    if(pgInfo) pgInfo.textContent = curPage + '/' + pages;
+    const pgPrevEl = document.getElementById('pg-prev');
+    if(pgPrevEl) pgPrevEl.disabled = curPage === 1;
+    const pgNextEl = document.getElementById('pg-next');
+    if(pgNextEl) pgNextEl.disabled = curPage === pages;
     if(!list.length){
-        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-12" style="color:#1a5c1a;"><div class="text-3xl mb-3 opacity-30">📋</div>İşlem bulunamadı</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-12 text-on-surface-variant/50"><div class="text-3xl mb-3 opacity-30">📋</div>İşlem bulunamadı</td></tr>`;
         return;
     }
     const start = (curPage-1) * perPage;
@@ -683,23 +946,25 @@ function renderHistory(){
     tbody.innerHTML = page.map(t => {
         const pv = t.PnLPercent || 0;
         return `<tr>
-            <td style="color:#1a5c1a;">${fmtDate(t.OpenedAt)}</td>
-            <td class="font-bold" style="color:#00ff41;">${t.Symbol}</td>
+            <td class="text-on-surface-variant">${fmtDate(t.OpenedAt)}</td>
+            <td class="font-bold text-primary">${t.Symbol}</td>
             <td>${dirBadge(t.Direction)}</td>
-            <td style="color:#00cc33;">${t.Pattern}</td>
+            <td class="text-on-surface-variant">${t.Pattern}</td>
             <td>${gradeBadge(t.Grade)}</td>
-            <td style="color:#00cc33;">$${fmtP(t.AvgEntryPrice||t.EntryPrice)}</td>
-            <td style="color:#00cc33;">${t.ExitPrice ? '$'+fmtP(t.ExitPrice) : '—'}</td>
-            <td style="color:#00cc33;">${t.MarginUsed ? '$'+t.MarginUsed.toFixed(0) : '—'}</td>
+            <td class="text-on-surface-variant">$${fmtP(t.AvgEntryPrice||t.EntryPrice)}</td>
+            <td class="text-on-surface-variant">${t.ExitPrice ? '$'+fmtP(t.ExitPrice) : '—'}</td>
+            <td class="text-on-surface-variant">${t.MarginUsed ? '$'+t.MarginUsed.toFixed(0) : '—'}</td>
             <td>${statusBadge(t.Status)}</td>
-            <td class="font-bold" style="${t.Status==='ACTIVE'||t.Status==='CANCELLED'?'color:#1a5c1a':pnlColor(pv)}">${t.Status==='ACTIVE'||t.Status==='CANCELLED'?'—':pnlStr(pv)}</td>
+            <td class="font-bold" style="${t.Status==='ACTIVE'||t.Status==='CANCELLED'?'color:#88929b':pnlColor(pv)}">${t.Status==='ACTIVE'||t.Status==='CANCELLED'?'—':pnlStr(pv)}</td>
         </tr>`;
     }).join('');
 }
 function setFilter(f, el){
     curFilter = f; curPage = 1;
-    document.querySelectorAll('.filt-btn').forEach(b => { b.style.background=''; b.style.color='#1a5c1a'; b.style.borderColor='rgba(0,255,65,0.1)'; });
-    el.style.background = '#00ff41'; el.style.color = '#000'; el.style.borderColor = '#00ff41';
+    document.querySelectorAll('.filt-btn').forEach(b => {
+        b.className = 'filt-btn px-3 py-1.5 text-[11px] font-semibold border bg-surface-container text-on-surface-variant border-outline-variant/20';
+    });
+    el.className = 'filt-btn active px-3 py-1.5 text-[11px] font-semibold border bg-primary text-on-primary border-primary';
     renderHistory();
 }
 function onSearch(){ searchQ = document.getElementById('search-input').value.toLowerCase(); curPage=1; renderHistory(); }
@@ -737,34 +1002,34 @@ function drawEquityChart(containerId, isLarge){
     container.innerHTML = '';
 
     if(data.length < 2){
-        container.innerHTML = '<div class="flex items-center justify-center h-full text-sm font-mono" style="color:#1a5c1a;">En az 2 kapanmış işlem gerekli</div>';
+        container.innerHTML = '<div class="flex items-center justify-center h-full text-sm font-mono text-on-surface-variant/50">En az 2 kapanmış işlem gerekli</div>';
         return;
     }
 
     const chart = LightweightCharts.createChart(container, {
         width: container.clientWidth,
-        height: container.clientHeight,
+        height: container.clientHeight || 280,
         layout: {
             background: { type: 'solid', color: 'transparent' },
-            textColor: '#1a5c1a',
+            textColor: '#88929b',
             fontFamily: 'JetBrains Mono',
             fontSize: 11,
         },
         grid: {
-            vertLines: { color: 'rgba(0,255,65,0.04)' },
-            horzLines: { color: 'rgba(0,255,65,0.04)' },
+            vertLines: { color: 'rgba(78,222,163,0.04)' },
+            horzLines: { color: 'rgba(78,222,163,0.04)' },
         },
         crosshair: {
             mode: LightweightCharts.CrosshairMode.Normal,
-            vertLine: { color: 'rgba(0,255,65,0.2)', width: 1, style: 2, labelBackgroundColor: '#00cc33' },
-            horzLine: { color: 'rgba(0,255,65,0.2)', width: 1, style: 2, labelBackgroundColor: '#00cc33' },
+            vertLine: { color: 'rgba(78,222,163,0.2)', width: 1, style: 2, labelBackgroundColor: '#171f33' },
+            horzLine: { color: 'rgba(78,222,163,0.2)', width: 1, style: 2, labelBackgroundColor: '#171f33' },
         },
         rightPriceScale: {
-            borderColor: 'rgba(0,255,65,0.08)',
+            borderColor: 'rgba(78,222,163,0.08)',
             scaleMargins: { top: 0.1, bottom: 0.1 },
         },
         timeScale: {
-            borderColor: 'rgba(0,255,65,0.08)',
+            borderColor: 'rgba(78,222,163,0.08)',
             timeVisible: true,
             secondsVisible: false,
         },
@@ -773,18 +1038,18 @@ function drawEquityChart(containerId, isLarge){
     });
 
     const lastVal = data[data.length-1]?.value || 0;
-    const lineColor = lastVal >= 0 ? '#00ff41' : '#ff3366';
-    const topColor = lastVal >= 0 ? 'rgba(0,255,65,0.4)' : 'rgba(255,51,102,0.25)';
+    const lineColor = lastVal >= 0 ? '#4edea3' : '#ffb3ad';
+    const topColor = lastVal >= 0 ? 'rgba(78,222,163,0.35)' : 'rgba(255,179,173,0.25)';
 
     const series = chart.addAreaSeries({
         lineColor: lineColor,
         topColor: topColor,
-        bottomColor: 'rgba(0,255,65,0.0)',
+        bottomColor: 'rgba(78,222,163,0.0)',
         lineWidth: 2,
         crosshairMarkerVisible: true,
         crosshairMarkerRadius: 4,
         crosshairMarkerBorderColor: lineColor,
-        crosshairMarkerBackgroundColor: '#000000',
+        crosshairMarkerBackgroundColor: '#0b1326',
         priceFormat: { type: 'custom', formatter: v => (v>=0?'+':'')+v.toFixed(2)+'%' },
     });
     series.setData(data);
@@ -805,16 +1070,18 @@ function drawEquityChart(containerId, isLarge){
 // ═══════════════════════════════════════════════════════════
 function renderPatternsPage(){
     const grid = document.getElementById('patterns-grid');
+    if(!grid) return;
     const entries = Object.entries(patternDescMap);
-    if(!entries.length){ grid.innerHTML = '<div class="col-span-full text-center py-12 font-mono" style="color:#1a5c1a;">Pattern verisi yok</div>'; return; }
+    if(!entries.length){ grid.innerHTML = '<div class="col-span-full text-center py-12 font-mono text-on-surface-variant/50">Pattern verisi yok</div>'; return; }
     grid.innerHTML = entries.map(([name,info]) => {
         const isLong = info.direction === 'LONG';
-        return `<div class="glass rounded-xl p-4 transition group" style="border-color:${isLong?'rgba(0,255,65,0.08)':'rgba(255,51,102,0.08)'};" onmouseover="this.style.borderColor='${isLong?'rgba(0,255,65,0.2)':'rgba(255,51,102,0.2)'}'" onmouseout="this.style.borderColor='${isLong?'rgba(0,255,65,0.08)':'rgba(255,51,102,0.08)'}'" >
-            <div class="flex items-center gap-2 mb-2">
-                <span class="font-bold text-sm" style="color:#00ff41;">${name}</span>
+        const borderClass = isLong ? 'border-primary/10 hover:border-primary/30' : 'border-tertiary/10 hover:border-tertiary/30';
+        return `<div class="bg-surface-container rounded-xl p-5 transition-all border ${borderClass}">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="font-bold text-sm text-on-surface">${name}</span>
                 ${dirBadge(info.direction)}
             </div>
-            <p class="text-[11px] leading-relaxed" style="color:#1a5c1a;">${info.description}</p>
+            <p class="text-[11px] leading-relaxed text-on-surface-variant">${info.description}</p>
         </div>`;
     }).join('');
 }
@@ -836,11 +1103,13 @@ function renderAnalysisSummary(){
     const total = s.TotalTrades || 0;
     const fillRate = total > 0 ? ((total-(s.CancelledTrades||0))/total*100).toFixed(1)+'%' : '—';
 
-    const row = (k,v,sty='color:#00cc33') => `<div class="flex justify-between items-center py-2" style="border-bottom:1px solid rgba(0,255,65,0.05);"><span class="text-[12px]" style="color:#1a5c1a;">${k}</span><span class="font-mono font-bold text-[13px]" style="${sty}">${v}</span></div>`;
+    const row = (k,v,cls='text-on-surface') => `<div class="flex justify-between items-center py-2 border-b border-outline-variant/10"><span class="text-[12px] text-on-surface-variant">${k}</span><span class="font-mono font-bold text-[13px] ${cls}">${v}</span></div>`;
 
     document.getElementById('analysis-summary').innerHTML = `
-        <div class="glass rounded-xl p-5">
-            <div class="text-[10px] font-bold uppercase tracking-wider mb-4 flex items-center gap-2" style="color:#1a5c1a;"><i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Genel Performans</div>
+        <div class="bg-surface-container rounded-xl p-6">
+            <div class="text-[10px] font-bold uppercase tracking-wider mb-4 flex items-center gap-2 text-on-surface-variant">
+                <span class="material-symbols-outlined text-sm">bar_chart</span> Genel Performans
+            </div>
             ${row('Toplam İşlem', total)}
             ${row('Kapanmış', closed)}
             ${row('Aktif', s.ActiveTrades||0)}
@@ -848,16 +1117,17 @@ function renderAnalysisSummary(){
             ${row('İptal', s.CancelledTrades||0)}
             ${row('Doluş Oranı', fillRate)}
         </div>
-        <div class="glass rounded-xl p-5">
-            <div class="text-[10px] font-bold uppercase tracking-wider mb-4 flex items-center gap-2" style="color:#1a5c1a;"><i data-lucide="coins" class="w-3.5 h-3.5"></i> Kar / Zarar</div>
-            ${row('Win Rate', closed>0?s.WinRate.toFixed(1)+'%':'—', s.WinRate>=50?'color:#00ff41;text-shadow:0 0 8px rgba(0,255,65,0.4)':'color:#ff3366')}
-            ${row('Toplam PnL', pnlStr(s.TotalPnL||0), pnlColor(s.TotalPnL||0))}
-            ${row('Ort. Kazanç', s.AvgWin?'+'+s.AvgWin.toFixed(2)+'%':'—', 'color:#00ff41')}
-            ${row('Ort. Kayıp', s.AvgLoss?s.AvgLoss.toFixed(2)+'%':'—', 'color:#ff3366')}
-            ${row('En İyi', s.BestTrade?'+'+s.BestTrade.toFixed(2)+'%':'—', 'color:#00ff41;text-shadow:0 0 8px rgba(0,255,65,0.4)')}
-            ${row('En Kötü', s.WorstTrade?s.WorstTrade.toFixed(2)+'%':'—', 'color:#ff3366')}
+        <div class="bg-surface-container rounded-xl p-6">
+            <div class="text-[10px] font-bold uppercase tracking-wider mb-4 flex items-center gap-2 text-on-surface-variant">
+                <span class="material-symbols-outlined text-sm">payments</span> Kar / Zarar
+            </div>
+            ${row('Win Rate', closed>0?s.WinRate.toFixed(1)+'%':'—', s.WinRate>=50?'text-primary':'text-tertiary')}
+            ${row('Toplam PnL', pnlStr(s.TotalPnL||0), pnlClass(s.TotalPnL||0))}
+            ${row('Ort. Kazanç', s.AvgWin?'+'+s.AvgWin.toFixed(2)+'%':'—', 'text-primary')}
+            ${row('Ort. Kayıp', s.AvgLoss?s.AvgLoss.toFixed(2)+'%':'—', 'text-tertiary')}
+            ${row('En İyi', s.BestTrade?'+'+s.BestTrade.toFixed(2)+'%':'—', 'text-primary')}
+            ${row('En Kötü', s.WorstTrade?s.WorstTrade.toFixed(2)+'%':'—', 'text-tertiary')}
         </div>`;
-    lucide.createIcons();
 }
 
 function renderDirectionAnalysis(){
@@ -880,24 +1150,24 @@ function renderDirectionAnalysis(){
     const bar = (label, wins, losses, color) => {
         const cl = wins+losses; const wr = cl>0 ? (wins/cl*100) : 0;
         return `<div class="flex items-center gap-3 mb-2">
-            <span class="text-[11px] font-mono font-bold w-16" style="color:#00cc33;">${label}</span>
-            <div class="flex-1 h-5 rounded overflow-hidden relative" style="background:#0a0a0a;">
-                <div class="h-full rounded transition-all duration-700" style="width:${Math.max(wr,3)}%;background:${color};opacity:0.8;box-shadow:0 0 10px ${color}40;"></div>
-                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold font-mono" style="color:rgba(255,255,255,0.8);">${wr.toFixed(0)}%</span>
+            <span class="text-[11px] font-mono font-bold w-16 text-on-surface">${label}</span>
+            <div class="flex-1 h-5 rounded overflow-hidden relative bg-surface-container-highest">
+                <div class="h-full rounded transition-all duration-700" style="width:${Math.max(wr,3)}%;background:${color};opacity:0.7;"></div>
+                <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold font-mono text-on-surface/80">${wr.toFixed(0)}%</span>
             </div>
-            <span class="text-[10px] font-mono w-14 text-right" style="color:#1a5c1a;">${wins}W/${losses}L</span>
+            <span class="text-[10px] font-mono w-14 text-right text-on-surface-variant">${wins}W/${losses}L</span>
         </div>`;
     };
 
-    let html = `<div class="glass rounded-xl p-5">
-        <div class="text-[10px] font-bold uppercase tracking-wider mb-4" style="color:#1a5c1a;">Yön Analizi</div>
-        ${bar('LONG', ds.LONG.wins, ds.LONG.losses, '#00ff41')}
-        ${bar('SHORT', ds.SHORT.wins, ds.SHORT.losses, '#ff3366')}
+    let html = `<div class="bg-surface-container rounded-xl p-6">
+        <div class="text-[10px] font-bold uppercase tracking-wider mb-4 text-on-surface-variant">Yön Analizi</div>
+        ${bar('LONG', ds.LONG.wins, ds.LONG.losses, '#4edea3')}
+        ${bar('SHORT', ds.SHORT.wins, ds.SHORT.losses, '#ffb3ad')}
     </div>`;
 
-    html += `<div class="glass rounded-xl p-5">
-        <div class="text-[10px] font-bold uppercase tracking-wider mb-4" style="color:#1a5c1a;">Grade Analizi</div>
-        ${Object.entries(gs).sort((a,b)=>a[0].localeCompare(b[0])).map(([grade,g]) => bar(grade, g.wins, g.losses, '#00ff41')).join('')}
+    html += `<div class="bg-surface-container rounded-xl p-6">
+        <div class="text-[10px] font-bold uppercase tracking-wider mb-4 text-on-surface-variant">Grade Analizi</div>
+        ${Object.entries(gs).sort((a,b)=>a[0].localeCompare(b[0])).map(([grade,g]) => bar(grade, g.wins, g.losses, '#4edea3')).join('')}
     </div>`;
 
     document.getElementById('analysis-direction').innerHTML = html;
@@ -905,17 +1175,18 @@ function renderDirectionAnalysis(){
 
 function renderPatternPerf(){
     const grid = document.getElementById('pattern-perf');
+    if(!grid) return;
     const ps = stats.PatternStats;
-    if(!ps || !Object.keys(ps).length){ grid.innerHTML = '<div class="col-span-full text-center py-8 font-mono" style="color:#1a5c1a;">Veri yok</div>'; return; }
+    if(!ps || !Object.keys(ps).length){ grid.innerHTML = '<div class="col-span-full text-center py-8 font-mono text-on-surface-variant/50">Veri yok</div>'; return; }
     const entries = Object.values(ps).sort((a,b) => b.WinRate - a.WinRate);
     grid.innerHTML = entries.map(p => {
-        const wrSty = p.WinRate>=60 ? 'color:#00ff41;text-shadow:0 0 10px rgba(0,255,65,0.5)' : (p.WinRate<40 ? 'color:#ff3366' : 'color:#00cc33');
-        return `<div class="glass rounded-lg p-4 glass-hover flex justify-between items-center">
+        const wrCls = p.WinRate>=60 ? 'text-primary' : (p.WinRate<40 ? 'text-tertiary' : 'text-on-surface');
+        return `<div class="bg-surface-container-low rounded-xl p-4 flex justify-between items-center hover:bg-surface-container-high transition-colors">
             <div>
-                <div class="font-bold text-[13px]" style="color:#00ff41;">${p.Name}</div>
-                <div class="text-[10px] mt-1 font-mono" style="color:#1a5c1a;">${p.Total} işlem · ${p.Wins}W ${p.Losses}L · Avg ${p.AvgPnL.toFixed(2)}%</div>
+                <div class="font-bold text-[13px] text-on-surface">${p.Name}</div>
+                <div class="text-[10px] mt-1 font-mono text-on-surface-variant">${p.Total} işlem · ${p.Wins}K ${p.Losses}Z · Ort ${p.AvgPnL.toFixed(2)}%</div>
             </div>
-            <div class="font-mono text-xl font-black" style="${wrSty}">${p.WinRate.toFixed(0)}%</div>
+            <div class="font-mono text-xl font-black ${wrCls}">${p.WinRate.toFixed(0)}%</div>
         </div>`;
     }).join('');
 }
@@ -931,17 +1202,18 @@ function renderSymbolPerf(){
         }
     });
     const tbody = document.getElementById('symbol-perf-body');
+    if(!tbody) return;
     const entries = Object.entries(sm).sort((a,b) => b[1].total - a[1].total);
-    if(!entries.length){ tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 font-mono" style="color:#1a5c1a;">Veri yok</td></tr>`; return; }
+    if(!entries.length){ tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 font-mono text-on-surface-variant/50">Veri yok</td></tr>`; return; }
     tbody.innerHTML = entries.map(([sym,s]) => {
         const cl = s.wins+s.losses;
         const wr = cl>0 ? (s.wins/cl*100).toFixed(0)+'%' : '—';
         return `<tr>
-            <td class="font-bold" style="color:#00ff41;">${sym}</td>
-            <td style="color:#00cc33;">${s.total}</td>
-            <td style="color:#00ff41;">${s.wins}</td>
-            <td style="color:#ff3366;">${s.losses}</td>
-            <td style="color:#00cc33;">${wr}</td>
+            <td class="font-bold text-primary">${sym}</td>
+            <td class="text-on-surface">${s.total}</td>
+            <td class="text-primary">${s.wins}</td>
+            <td class="text-tertiary">${s.losses}</td>
+            <td class="text-on-surface">${wr}</td>
             <td class="font-bold" style="${pnlColor(s.pnl)}">${pnlStr(s.pnl)}</td>
         </tr>`;
     }).join('');
@@ -952,6 +1224,7 @@ function renderSymbolPerf(){
 // ═══════════════════════════════════════════════════════════
 const tooltipEl = document.getElementById('tooltip-overlay');
 function showTooltip(e, html){
+    if(!tooltipEl) return;
     tooltipEl.innerHTML = html;
     tooltipEl.classList.remove('hidden');
     const r = e.target.getBoundingClientRect();
@@ -961,12 +1234,12 @@ function showTooltip(e, html){
     if(top < 5) top = 5;
     tooltipEl.style.left = left+'px'; tooltipEl.style.top = top+'px';
 }
-function hideTooltip(){ tooltipEl.classList.add('hidden'); }
+function hideTooltip(){ if(tooltipEl) tooltipEl.classList.add('hidden'); }
 
 // ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
-termLog('HFT MATRIX Command Center v3.0 başlatıldı', 'success');
+termLog('Demir Trade Bot v3.0 Komuta Merkezi başlatıldı', 'success');
 termLog('REST API verisi yükleniyor...', 'info');
 fetchData().then(() => {
     termLog(`${allTrades.length} işlem yüklendi, ${activeTrades.length} aktif pozisyon`, 'success');
@@ -981,11 +1254,10 @@ fetchData().then(() => {
 });
 
 // Init filter button default active state
-document.querySelector('.filt-btn.active').style.background = '#00ff41';
-document.querySelector('.filt-btn.active').style.color = '#000';
-document.querySelector('.filt-btn.active').style.borderColor = '#00ff41';
-
-lucide.createIcons();
+const initFiltBtn = document.querySelector('.filt-btn.active');
+if(initFiltBtn) {
+    initFiltBtn.className = 'filt-btn active px-3 py-1.5 text-[11px] font-semibold border bg-primary text-on-primary border-primary rounded-l-lg';
+}
 </script>
 </body>
 </html>
