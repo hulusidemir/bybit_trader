@@ -245,6 +245,10 @@
                             <span class="text-xs text-on-surface-variant uppercase">En Kötü İşlem</span>
                             <span id="perf-worst" class="font-headline text-lg font-bold text-tertiary">—</span>
                         </div>
+                        <div class="flex justify-between items-end border-b border-outline-variant/10 pb-3">
+                            <span class="text-xs text-on-surface-variant uppercase">ANOMALİ TESPİTİ</span>
+                            <span id="perf-anomaly" class="font-headline text-lg font-bold text-tertiary">0</span>
+                        </div>
                         <div class="flex justify-between items-end">
                             <span class="text-xs text-on-surface-variant uppercase">TP1/TP2/TP3</span>
                             <span id="perf-tp" class="font-headline text-lg font-bold text-on-surface">—</span>
@@ -252,14 +256,14 @@
                     </div>
                 </div>
 
-                <!-- Active Trades -->
+                <!-- Pattern Counts -->
                 <div class="bg-surface-container p-6 rounded-xl">
-                    <div class="flex justify-between items-center mb-6">
-                        <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Aktif İşlemler</h4>
-                        <span id="active-count" class="text-[10px] font-mono text-on-surface-variant bg-surface-container-highest px-2 py-0.5 rounded">ADET: 0</span>
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Mevcut Patternler</h4>
+                        <span class="material-symbols-outlined text-on-surface-variant text-sm">pattern</span>
                     </div>
-                    <div id="dash-active-cards" class="space-y-3">
-                        <div class="text-center py-8 text-on-surface-variant/50 text-xs font-mono">Aktif pozisyon yok</div>
+                    <div id="dash-pattern-counts" class="space-y-2">
+                        <div class="text-center py-6 text-on-surface-variant/50 text-xs font-mono">Yükleniyor...</div>
                     </div>
                 </div>
             </div>
@@ -275,6 +279,10 @@
                         </div>
                         <div class="flex items-center gap-3">
                             <span id="equity-total" class="font-mono text-sm font-bold text-primary"></span>
+                            <div class="flex rounded-lg overflow-hidden border border-outline-variant/20">
+                                <button id="eq-btn-hourly" onclick="setEquityMode('hourly')" class="px-2 py-1 text-[10px] font-mono font-bold bg-primary text-on-primary transition-all">SAATLİK</button>
+                                <button id="eq-btn-daily" onclick="setEquityMode('daily')" class="px-2 py-1 text-[10px] font-mono font-bold bg-surface-container-highest text-on-surface-variant transition-all">GÜNLÜK</button>
+                            </div>
                             <div class="flex items-center gap-2 bg-surface-container-highest rounded-full px-3 py-1">
                                 <div class="w-2 h-2 rounded-full bg-primary pulsate-green"></div>
                                 <span class="text-[10px] font-bold font-mono text-primary tracking-widest">CANLI</span>
@@ -304,9 +312,15 @@
 
                 <!-- Active Positions Table (Dashboard) -->
                 <div class="bg-surface-container rounded-xl overflow-hidden">
-                    <div class="flex items-center gap-3 px-6 py-4 bg-surface-container-low">
-                        <span class="material-symbols-outlined text-sm text-on-surface-variant">swap_vert</span>
-                        <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Aktif Pozisyonlar</h4>
+                    <div class="flex items-center justify-between px-6 py-4 bg-surface-container-low">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-sm text-on-surface-variant">swap_vert</span>
+                            <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Aktif Pozisyonlar</h4>
+                        </div>
+                        <button onclick="navigateTo('trades')" class="flex items-center gap-1 text-[10px] font-mono text-secondary hover:text-on-surface transition-colors bg-secondary/10 hover:bg-secondary/20 px-2 py-1 rounded cursor-pointer">
+                            <span>DEVAMI</span>
+                            <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+                        </button>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="dt-table">
@@ -471,6 +485,11 @@
 
 </main>
 
+<!-- ═══ Footer ═══ -->
+<div class="md:pl-64 px-8 py-3 pb-28 md:pb-3">
+    <p class="text-center text-[10px] font-mono text-on-surface-variant/30 border-t border-outline-variant/10 pt-3">All Rights Reserved &copy; by Hulusi DEMİR</p>
+</div>
+
 <!-- ═══ Bottom Navigation (Mobile) ═══ -->
 <nav class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-surface-container-lowest/90 backdrop-blur-lg border-t border-outline-variant/10 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
     <a class="mob-nav nav-link-active flex flex-col items-center justify-center rounded-xl px-4 py-2 transition-transform cursor-pointer" data-page="dashboard">
@@ -507,6 +526,7 @@ let curFilter='all', searchQ='', sortField='OpenedAt', sortDir=-1;
 let curPage=1, perPage=50;
 let equityChart=null, equityChartLg=null;
 let equitySeries=null, equitySeriesLg=null;
+let equityMode = 'hourly';
 let prevPnlMap = {};
 let ws = null;
 let logCount = 0;
@@ -644,7 +664,7 @@ function handleWsMessage(data){
     } else if(data.type === 'stats_update') {
         if(data.payload) { stats = data.payload; renderDashboard(); }
     } else if(data.type === 'active_update') {
-        if(data.payload) { activeTrades = data.payload; renderDashActive(); renderDashActiveCards(); renderActiveTrades(); }
+        if(data.payload) { activeTrades = data.payload; renderDashActive(); renderDashPatternCounts(); renderActiveTrades(); }
     }
 }
 
@@ -876,6 +896,8 @@ function renderDashboard(){
     if(perfWorst) { perfWorst.textContent = s.WorstTrade ? s.WorstTrade.toFixed(2)+'%' : '—'; }
     const perfTp = document.getElementById('perf-tp');
     if(perfTp) { perfTp.textContent = (s.TP1Count||0)+'/'+(s.TP2Count||0)+'/'+(s.TP3Count||0); }
+    const perfAnomaly = document.getElementById('perf-anomaly');
+    if(perfAnomaly) { perfAnomaly.textContent = anomalies ? String(anomalies.length) : '0'; }
 
     // Bottom stats
     const stAvgWin = document.getElementById('stat-avg-win');
@@ -892,7 +914,7 @@ function renderDashboard(){
     if(ac) ac.textContent = 'ADET: ' + (activeTrades ? activeTrades.length : 0);
 
     renderDashActive();
-    renderDashActiveCards();
+    renderDashPatternCounts();
     drawEquityChart('equity-chart', false);
     const el = document.getElementById('equity-total');
     if(el) { el.textContent = pnlStr(pnlVal); el.style.cssText = pnlColor(pnlVal); }
@@ -934,7 +956,7 @@ function renderDashActive(){
         tbody.innerHTML = `<tr><td colspan="9" class="text-center py-12 text-on-surface-variant/50"><div class="text-3xl mb-3 opacity-30">📡</div>Aktif pozisyon yok</td></tr>`;
         return;
     }
-    const sorted = [...activeTrades].sort((a,b) => new Date(b.OpenedAt) - new Date(a.OpenedAt));
+    const sorted = [...activeTrades].sort((a,b) => new Date(b.OpenedAt) - new Date(a.OpenedAt)).slice(0, 10);
     tbody.innerHTML = sorted.map(t => {
         const pnl = livePnl(t);
         const prevPnl = prevPnlMap[t.ID];
@@ -957,6 +979,35 @@ function renderDashActive(){
         if(td.dataset.flash === 'up') flashCell(td, 'up');
         else if(td.dataset.flash === 'down') flashCell(td, 'down');
     });
+}
+
+function renderDashPatternCounts(){
+    const el = document.getElementById('dash-pattern-counts');
+    if(!el) return;
+    const counts = {};
+    allTrades.forEach(t => {
+        const k = String(t.Pattern);
+        if(!counts[k]) counts[k] = 0;
+        counts[k]++;
+    });
+    const entries = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+    if(!entries.length) {
+        el.innerHTML = '<div class="text-center py-6 text-on-surface-variant/50 text-xs font-mono">Henüz işlem yok</div>';
+        return;
+    }
+    const maxCount = entries[0][1];
+    el.innerHTML = entries.map(([name, cnt]) => {
+        const pct = Math.max((cnt/maxCount)*100, 4);
+        const info = patternDescMap[name];
+        const dirColor = info ? (info.direction==='LONG'?'#4edea3':'#ffb3ad') : '#89ceff';
+        return `<div class="flex items-center gap-2">
+            <span class="text-[10px] font-mono text-on-surface-variant w-24 truncate" title="${name}">${name}</span>
+            <div class="flex-1 h-4 rounded overflow-hidden bg-surface-container-highest relative">
+                <div class="h-full rounded" style="width:${pct}%;background:${dirColor};opacity:0.45;"></div>
+                <span class="absolute inset-0 flex items-center justify-end pr-2 text-[10px] font-bold font-mono text-on-surface/70">${cnt}</span>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1123,20 +1174,26 @@ function getEquityData(){
         .filter(t => t.Status!=='ACTIVE' && t.Status!=='PENDING' && t.Status!=='CANCELLED' && t.PnLPercent!==0 && t.ClosedAt)
         .sort((a,b) => new Date(a.ClosedAt) - new Date(b.ClosedAt));
     if(closed.length < 2) return [];
-    let cum = 0;
-    const raw = closed.map(t => {
-        cum += t.PnLPercent;
+
+    const buckets = {};
+    closed.forEach(t => {
         const d = new Date(t.ClosedAt);
-        return { time: Math.floor(d.getTime()/1000), value: parseFloat(cum.toFixed(2)) };
-    });
-    // Deduplicate timestamps — keep last value per second
-    const deduped = [];
-    for(let i = 0; i < raw.length; i++){
-        if(i === raw.length - 1 || raw[i].time !== raw[i+1].time){
-            deduped.push(raw[i]);
+        let key;
+        if(equityMode === 'daily') {
+            key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        } else {
+            key = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime();
         }
-    }
-    return deduped;
+        if(!buckets[key]) buckets[key] = 0;
+        buckets[key] += t.PnLPercent;
+    });
+    const keys = Object.keys(buckets).map(Number).sort((a,b) => a-b);
+    if(keys.length < 2) return [];
+    let cum = 0;
+    return keys.map(k => {
+        cum += buckets[k];
+        return { time: Math.floor(k/1000), value: parseFloat(cum.toFixed(2)) };
+    });
 }
 
 function drawEquityChart(containerId, isLarge){
@@ -1213,6 +1270,22 @@ function drawEquityChart(containerId, isLarge){
   } catch(e) {
     console.error('[Grafik Çizim Hatası]', e.message || e);
   }
+}
+
+function setEquityMode(mode) {
+    equityMode = mode;
+    const ha = document.getElementById('eq-btn-hourly');
+    const da = document.getElementById('eq-btn-daily');
+    if(ha && da) {
+        if(mode === 'hourly') {
+            ha.className = 'px-2 py-1 text-[10px] font-mono font-bold bg-primary text-on-primary transition-all';
+            da.className = 'px-2 py-1 text-[10px] font-mono font-bold bg-surface-container-highest text-on-surface-variant transition-all';
+        } else {
+            ha.className = 'px-2 py-1 text-[10px] font-mono font-bold bg-surface-container-highest text-on-surface-variant transition-all';
+            da.className = 'px-2 py-1 text-[10px] font-mono font-bold bg-primary text-on-primary transition-all';
+        }
+    }
+    drawEquityChart('equity-chart', false);
 }
 
 // ═══════════════════════════════════════════════════════════
