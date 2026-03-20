@@ -144,6 +144,10 @@
             <span class="material-symbols-outlined text-[20px]">pattern</span>
             <span class="font-headline font-medium text-sm">Patternler</span>
         </a>
+        <a class="nav-link flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded-lg transition-all duration-200 cursor-pointer" data-page="anomalies">
+            <span class="material-symbols-outlined text-[20px]">warning</span>
+            <span class="font-headline font-medium text-sm">Anomaliler</span>
+        </a>
     </nav>
     <div class="mt-auto p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
         <div class="flex items-center gap-3">
@@ -348,9 +352,9 @@
             <div class="overflow-x-auto">
                 <table class="dt-table">
                     <thead><tr>
-                        <th>Zaman</th><th>Coin</th><th>Yön</th><th>Pattern</th><th>Grade</th>
+                        <th>Açılış</th><th>Coin</th><th>Yön</th><th>Pattern</th><th>Grade</th>
                         <th>Giriş</th><th>Şu An</th><th>PnL</th><th>Margin</th>
-                        <th>Aşama</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th>
+                        <th>Aşama</th><th>TP/SL</th><th>Pozisyon Sayaç</th>
                     </tr></thead>
                     <tbody id="active-body"></tbody>
                 </table>
@@ -443,6 +447,28 @@
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="patterns-grid"></div>
     </div>
 
+    <!-- ═══ PAGE: ANOMALIES ═══ -->
+    <div class="page hidden" id="page-anomalies">
+        <div class="bg-surface-container rounded-xl overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 bg-surface-container-low">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-sm text-tertiary">warning</span>
+                    <h4 class="font-headline text-sm font-bold uppercase tracking-widest text-on-surface">Anomali Kayıtları (-%3 ve altı)</h4>
+                </div>
+                <span id="anomaly-count" class="text-[10px] font-mono bg-tertiary/10 text-tertiary px-2 py-0.5 rounded-full">0</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="dt-table">
+                    <thead><tr>
+                        <th>Coin</th><th>Yön</th><th>Pattern</th><th>Açılış</th><th>En Kötü PnL</th>
+                        <th>Son Fiyat</th><th>Durum</th><th>Tespit Zamanı</th><th>Kapanış</th>
+                    </tr></thead>
+                    <tbody id="anomaly-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
 </main>
 
 <!-- ═══ Bottom Navigation (Mobile) ═══ -->
@@ -463,6 +489,10 @@
         <span class="material-symbols-outlined">pattern</span>
         <span class="text-[10px] uppercase tracking-tighter mt-1">Pattern</span>
     </a>
+    <a class="mob-nav flex flex-col items-center justify-center text-on-surface-variant cursor-pointer" data-page="anomalies">
+        <span class="material-symbols-outlined">warning</span>
+        <span class="text-[10px] uppercase tracking-tighter mt-1">Anomali</span>
+    </a>
 </nav>
 
 <!-- ═══ Tooltip Overlay ═══ -->
@@ -472,7 +502,7 @@
 // ═══════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════
-let allTrades=[], activeTrades=[], stats={}, patternDescMap={}, tradeMap={};
+let allTrades=[], activeTrades=[], anomalies=[], stats={}, patternDescMap={}, tradeMap={};
 let curFilter='all', searchQ='', sortField='OpenedAt', sortDir=-1;
 let curPage=1, perPage=50;
 let equityChart=null, equityChartLg=null;
@@ -524,6 +554,7 @@ function navigateTo(page) {
     if(target) target.classList.remove('hidden');
     if(page === 'analysis') renderAnalysisPage();
     if(page === 'patterns') renderPatternsPage();
+    if(page === 'anomalies') renderAnomaliesPage();
 }
 document.querySelectorAll('.nav-link, .mob-nav').forEach(btn => {
     btn.addEventListener('click', () => navigateTo(btn.dataset.page));
@@ -677,18 +708,19 @@ function startRestPolling(){
 // ═══════════════════════════════════════════════════════════
 async function fetchData(){
     try {
-        const [tRes, sRes, aRes, pRes] = await Promise.all([
-            fetch('/api/trades'), fetch('/api/stats'), fetch('/api/active'), fetch('/api/patterns')
+        const [tRes, sRes, aRes, pRes, anRes] = await Promise.all([
+            fetch('/api/trades'), fetch('/api/stats'), fetch('/api/active'), fetch('/api/patterns'), fetch('/api/anomalies')
         ]);
         allTrades = await tRes.json() || [];
         stats = await sRes.json() || {};
         activeTrades = await aRes.json() || [];
         const patterns = await pRes.json() || [];
+        anomalies = await anRes.json() || [];
         patterns.forEach(p => { patternDescMap[p.name] = { direction: p.direction, description: p.description }; });
         tradeMap = {}; allTrades.forEach(t => { tradeMap[t.ID] = t; });
 
         setApiStatus('online');
-        renderDashboard(); renderActiveTrades(); renderHistory();
+        renderDashboard(); renderActiveTrades(); renderHistory(); renderAnomaliesPage();
     } catch(e) {
         console.error('Fetch error:', e);
         setApiStatus('offline');
@@ -710,8 +742,9 @@ async function fetchBalance(){
 // ═══════════════════════════════════════════════════════════
 function fmtP(p){ if(!p) return '0.00'; if(p>=1000) return p.toFixed(2); if(p>=1) return p.toFixed(4); if(p>=0.01) return p.toFixed(6); return p.toFixed(8); }
 function fmtDate(s){ if(!s) return '—'; const d=new Date(s); return d.toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
-function fmtShortDate(s){ if(!s) return '—'; const d=new Date(s); return d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); }
+function fmtShortDate(s){ if(!s) return '—'; const d=new Date(s); const day=String(d.getDate()).padStart(2,'0'); const month=String(d.getMonth()+1).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${day}.${month} - ${hh}:${mm}`; }
 function fmtDuration(a,b){ if(!a||!b) return '—'; const s=Math.floor((new Date(b)-new Date(a))/1000); if(s<0) return '—'; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60; if(h>0) return h+'sa '+m+'dk'; if(m>0) return m+'dk '+sec+'sn'; return sec+'sn'; }
+function fmtElapsedClock(openedAt){ if(!openedAt) return '--:--:--'; let s=Math.floor((Date.now()-new Date(openedAt).getTime())/1000); if(!Number.isFinite(s)||s<0) s=0; const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; }
 function pnlStr(v){ return (v>=0?'+':'')+v.toFixed(2)+'%'; }
 function pnlColor(v){ return v>=0 ? 'color:#4edea3' : 'color:#ffb3ad'; }
 function pnlClass(v){ return v>=0 ? 'text-primary' : 'text-tertiary'; }
@@ -935,13 +968,15 @@ function renderActiveTrades(){
     const acb = document.getElementById('active-count-badge');
     if(acb) acb.textContent = activeTrades ? activeTrades.length : 0;
     if(!activeTrades || !activeTrades.length){
-        tbody.innerHTML = `<tr><td colspan="14" class="text-center py-12 text-on-surface-variant/50"><div class="text-3xl mb-3 opacity-30">📡</div>Aktif pozisyon yok</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" class="text-center py-12 text-on-surface-variant/50"><div class="text-3xl mb-3 opacity-30">📡</div>Aktif pozisyon yok</td></tr>`;
         return;
     }
     const sorted = [...activeTrades].sort((a,b) => new Date(b.OpenedAt) - new Date(a.OpenedAt));
-    tbody.innerHTML = sorted.map(t => {
+    const totalLivePnl = sorted.reduce((sum, t) => sum + livePnl(t), 0);
+    const rowsHtml = sorted.map(t => {
         const pnl = livePnl(t);
         const avg = t.AvgEntryPrice || t.EntryPrice;
+        const tpSlCompact = `<div class="text-[10px] leading-tight font-mono text-on-surface-variant"><div>TP: ${fmtP(t.TP1)} / ${fmtP(t.TP2)} / ${fmtP(t.TP3)}</div><div>SL: ${t.StopLoss ? fmtP(t.StopLoss) : '—'}</div></div>`;
         return `<tr>
             <td class="text-on-surface-variant">${fmtShortDate(t.OpenedAt)}</td>
             <td class="font-bold text-primary">${t.Symbol}</td>
@@ -953,12 +988,25 @@ function renderActiveTrades(){
             <td class="font-bold" style="${pnlColor(pnl)}">${pnlStr(pnl)}</td>
             <td class="text-on-surface-variant">$${(t.MarginUsed||0).toFixed(0)}</td>
             <td>${phaseStr(t.TPPhase)}</td>
-            <td>${slCell(t)}</td>
-            <td class="text-on-surface-variant">$${fmtP(t.TP1)}</td>
-            <td class="text-on-surface-variant">$${fmtP(t.TP2)}</td>
-            <td class="text-on-surface-variant">$${fmtP(t.TP3)}</td>
+            <td>${tpSlCompact}</td>
+            <td class="text-[11px] font-mono text-secondary"><span class="pos-counter" data-opened-at="${t.OpenedAt}">${fmtElapsedClock(t.OpenedAt)}</span></td>
         </tr>`;
     }).join('');
+
+    const summaryRow = `<tr class="bg-surface-container-low/60 border-t border-outline-variant/20">
+        <td colspan="10" class="text-right text-[11px] font-mono uppercase tracking-wide text-on-surface-variant">Toplam Gerçekleşmemiş PnL</td>
+        <td colspan="2" class="text-[12px] font-mono font-bold ${pnlClass(totalLivePnl)}">${pnlStr(totalLivePnl)}</td>
+    </tr>`;
+
+    tbody.innerHTML = rowsHtml + summaryRow;
+
+    updatePositionCounters();
+}
+
+function updatePositionCounters(){
+    document.querySelectorAll('.pos-counter[data-opened-at]').forEach(el => {
+        el.textContent = fmtElapsedClock(el.dataset.openedAt);
+    });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1026,6 +1074,46 @@ function onPerPage(){ perPage = parseInt(document.getElementById('per-page').val
 function pgPrev(){ if(curPage>1){ curPage--; renderHistory(); } }
 function pgNext(){ const pages=Math.ceil(getFiltered().length/perPage)||1; if(curPage<pages){ curPage++; renderHistory(); } }
 function doSort(f){ if(sortField===f) sortDir*=-1; else { sortField=f; sortDir=-1; } renderHistory(); }
+
+setInterval(updatePositionCounters, 1000);
+
+function anomalyStatusBadge(s){
+    if(s==='ACTIVE') return '<span class="badge bg-secondary/10 text-secondary border border-secondary/20">ACTIVE</span>';
+    if(s==='TP1_HIT'||s==='TP2_HIT'||s==='TP3_HIT') return `<span class="badge bg-primary/10 text-primary border border-primary/20">${s}</span>`;
+    if(s==='STOPPED') return '<span class="badge bg-error/10 text-error border border-error/20">STOPPED</span>';
+    if(s==='CANCELLED') return '<span class="badge bg-outline/10 text-outline border border-outline/20">CANCELLED</span>';
+    return `<span class="badge bg-surface-container-highest text-on-surface-variant border border-outline-variant/20">${s||'—'}</span>`;
+}
+
+function renderAnomaliesPage(){
+    const tbody = document.getElementById('anomaly-body');
+    const cnt = document.getElementById('anomaly-count');
+    if(!tbody) return;
+
+    const list = Array.isArray(anomalies) ? [...anomalies] : [];
+    if(cnt) cnt.textContent = String(list.length);
+
+    if(!list.length){
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-12 text-on-surface-variant/50"><div class="text-3xl mb-3 opacity-30">🛡️</div>Anomali tespit edilmedi</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = list.map(a => {
+        const worst = Number(a.worstPnlPercent || 0);
+        const cur = Number(a.currentPrice || 0);
+        return `<tr>
+            <td class="font-bold text-primary">${a.symbol}</td>
+            <td>${dirBadge(a.direction)}</td>
+            <td>${patternWithTip(a.pattern || '—')}</td>
+            <td class="text-on-surface-variant">${fmtShortDate(a.openedAt)}</td>
+            <td class="font-bold text-tertiary">${pnlStr(worst)}</td>
+            <td class="text-on-surface-variant">$${fmtP(cur)}</td>
+            <td>${anomalyStatusBadge(a.status)}</td>
+            <td class="text-on-surface-variant">${fmtDate(a.detectedAt)}</td>
+            <td class="text-on-surface-variant">${a.closedAt ? fmtDate(a.closedAt) : '—'}</td>
+        </tr>`;
+    }).join('');
+}
 
 // ═══════════════════════════════════════════════════════════
 //  EQUITY CURVE (TradingView Lightweight Charts)

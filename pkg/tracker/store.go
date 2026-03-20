@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
 	"bybit_trader/pkg/models"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Store struct {
@@ -69,6 +70,16 @@ func createTables(db *sql.DB) error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
 		CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol);
+
+		CREATE TABLE IF NOT EXISTS anomalies (
+			trade_id INTEGER PRIMARY KEY,
+			worst_pnl_percent REAL NOT NULL,
+			threshold_percent REAL NOT NULL DEFAULT -3.0,
+			detected_at DATETIME NOT NULL,
+			last_seen_at DATETIME NOT NULL,
+			FOREIGN KEY(trade_id) REFERENCES trades(id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_anomalies_detected_at ON anomalies(detected_at DESC);
 	`)
 	return err
 }
@@ -509,6 +520,62 @@ func (s *Store) UpdateTradeStatus(id int64, status models.TradeStatus) error {
 		_, err := s.db.Exec(`UPDATE trades SET status = ? WHERE id = ?`, status, id)
 		return err
 	}
+}
+
+func (s *Store) UpsertAnomaly(tradeID int64, pnlPercent float64, thresholdPercent float64) error {
+	now := time.Now()
+	_, err := s.db.Exec(`
+		INSERT INTO anomalies (trade_id, worst_pnl_percent, threshold_percent, detected_at, last_seen_at)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(trade_id) DO UPDATE SET
+			worst_pnl_percent = excluded.worst_pnl_percent
+		WHERE excluded.worst_pnl_percent < anomalies.worst_pnl_percent
+	`, tradeID, pnlPercent, thresholdPercent, now, now)
+	return err
+}
+
+func (s *Store) GetAnomalies() ([]*models.AnomalyRecord, error) {
+	rows, err := s.db.Query(`
+		SELECT
+			t.id, t.signal_id, t.symbol, t.direction, t.pattern, t.grade, t.status,
+			t.opened_at, t.closed_at, t.entry_price, t.current_price,
+			a.worst_pnl_percent, a.detected_at, a.last_seen_at, a.threshold_percent
+		FROM anomalies a
+		JOIN trades t ON t.id = a.trade_id
+		ORDER BY a.detected_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	res := make([]*models.AnomalyRecord, 0)
+	for rows.Next() {
+		r := &models.AnomalyRecord{}
+		var direction, pattern, grade, status string
+		var closedAt sql.NullTime
+
+		err := rows.Scan(
+			&r.TradeID, &r.SignalID, &r.Symbol, &direction, &pattern, &grade, &status,
+			&r.OpenedAt, &closedAt, &r.EntryPrice, &r.CurrentPrice,
+			&r.WorstPnLPercent, &r.DetectedAt, &r.LastSeenAt, &r.ThresholdPercent,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		r.Direction = models.SignalDirection(direction)
+		r.Pattern = models.PatternName(pattern)
+		r.Grade = models.SignalGrade(grade)
+		r.Status = models.TradeStatus(status)
+		if closedAt.Valid {
+			r.ClosedAt = &closedAt.Time
+		}
+
+		res = append(res, r)
+	}
+
+	return res, rows.Err()
 }
 
 func (s *Store) Close() error {

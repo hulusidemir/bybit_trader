@@ -34,6 +34,8 @@ type Monitor struct {
 	orderTimeout time.Duration
 }
 
+const anomalyThresholdPercent = -3.0
+
 func NewMonitor(store *Store, tgBot *telegram.Bot, exec *executor.Executor, orderTimeoutSec int, execEventCh <-chan models.ExecutionEvent) *Monitor {
 	return &Monitor{
 		store:        store,
@@ -317,12 +319,38 @@ func (m *Monitor) handlePositionUpdate(p models.PositionUpdatePayload) {
 	// Update mark price in DB
 	if p.MarkPrice > 0 {
 		m.store.UpdateCurrentPrice(trade.ID, p.MarkPrice)
+		m.trackAnomaly(trade, p.MarkPrice)
 	}
 
 	// Check DCA conditions (only pre-TP1, use mark price)
 	if trade.TPPhase == models.TPPhaseWaitingTP1 && p.MarkPrice > 0 && m.exec.ShouldDCA(trade, p.MarkPrice) {
 		m.executeDCA(trade, p.MarkPrice)
 	}
+}
+
+func (m *Monitor) trackAnomaly(trade *models.Trade, markPrice float64) {
+	if markPrice <= 0 || trade.AvgEntryPrice <= 0 {
+		return
+	}
+
+	pnl := calcLivePnLPercent(trade.Direction, trade.AvgEntryPrice, markPrice)
+	if pnl > anomalyThresholdPercent {
+		return
+	}
+
+	if err := m.store.UpsertAnomaly(trade.ID, pnl, anomalyThresholdPercent); err != nil {
+		log.Printf("[Monitor] anomaly upsert failed for trade %d: %v", trade.ID, err)
+	}
+}
+
+func calcLivePnLPercent(direction models.SignalDirection, entryPrice, currentPrice float64) float64 {
+	if entryPrice <= 0 || currentPrice <= 0 {
+		return 0
+	}
+	if direction == models.DirectionLong {
+		return ((currentPrice - entryPrice) / entryPrice) * 100
+	}
+	return ((entryPrice - currentPrice) / entryPrice) * 100
 }
 
 // placeNextTPOrder places the appropriate TP limit order based on the phase

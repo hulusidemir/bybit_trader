@@ -157,6 +157,7 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/trades", s.handleTrades)
 	mux.HandleFunc("/api/stats", s.handleStats)
 	mux.HandleFunc("/api/active", s.handleActive)
+	mux.HandleFunc("/api/anomalies", s.handleAnomalies)
 	mux.HandleFunc("/api/patterns", handlePatterns)
 	mux.HandleFunc("/api/balance", s.handleBalance)
 
@@ -368,6 +369,19 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]float64{"balance": bal})
+}
+
+func (s *Server) handleAnomalies(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	anomalies, err := s.store.GetAnomalies()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	json.NewEncoder(w).Encode(anomalies)
 }
 
 func handlePatterns(w http.ResponseWriter, r *http.Request) {
