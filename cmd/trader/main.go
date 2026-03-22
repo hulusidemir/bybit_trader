@@ -145,7 +145,7 @@ func main() {
 	if cfg.TradingEnabled {
 		balanceFetcher = tradeClient
 	}
-	dash := dashboard.NewServer(store, cfg.DashboardPort, dashExecCh, balanceFetcher)
+	dash := dashboard.NewServer(store, cfg.DashboardPort, dashExecCh, balanceFetcher, cfg.StrategyMode)
 	dash.Start()
 
 	// ── Fetch Instruments (one-time REST) ──────────────
@@ -175,6 +175,7 @@ func main() {
 		BlacklistedCoins: blacklistSlice,
 		MarginOverrides:  cfg.CoinMarginOverrides,
 		DCAOverrides:     cfg.CoinDCAOverrides,
+		StrategyMode:     cfg.StrategyMode,
 	})
 
 	// ═══════════════════════════════════════════════════════
@@ -506,6 +507,9 @@ func signalProcessor(
 
 			// ── Telegram Notification ──────────────────
 			msg := signals.FormatTelegramMessage(sig)
+			if cfg.IsInverse() {
+				msg = "🔄 *INVERSE BOT*\n\n" + msg
+			}
 			if err := tgBot.SendMessage(msg); err != nil {
 				log.Printf("[Signals] Telegram error: %v", err)
 				continue
@@ -521,7 +525,11 @@ func signalProcessor(
 				orderID, entryPrice, qty, execErr = exec.OpenPosition(sig, margin)
 				if execErr != nil {
 					log.Printf("[Signals] ⚠️ Trade execution failed for %s: %v", sig.Symbol, execErr)
-					tgBot.SendMessage("⚠️ *EMİR HATA* — " + sig.Symbol + "\n" + execErr.Error())
+					errPrefix := ""
+					if cfg.IsInverse() {
+						errPrefix = "🔄 INVERSE "
+					}
+					tgBot.SendMessage("⚠️ *" + errPrefix + "EMİR HATA* — " + sig.Symbol + "\n" + execErr.Error())
 					continue
 				}
 			} else {

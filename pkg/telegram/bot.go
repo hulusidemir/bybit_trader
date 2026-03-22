@@ -87,9 +87,17 @@ type StartupInfo struct {
 	BlacklistedCoins []string
 	MarginOverrides  map[string]float64
 	DCAOverrides     map[string]float64
+	StrategyMode     string
 }
 
 func (b *Bot) SendStartup(info StartupInfo) {
+	headerEmoji := "🤖"
+	headerText := "TRADER BOT BAŞLADI"
+	if info.StrategyMode == "inverse" {
+		headerEmoji = "🔄"
+		headerText = "INVERSE TRADER BOT BAŞLADI"
+	}
+
 	tradingMode := "🔴 Signal-only (trading disabled)"
 	if info.TradingEnabled {
 		env := "Mainnet"
@@ -137,7 +145,7 @@ func (b *Bot) SendStartup(info StartupInfo) {
 	}
 
 	msg := fmt.Sprintf(
-		"🤖 *TRADER BOT BAŞLADI*\n\n"+
+		"%s *%s*\n\n"+
 			"📊 Taranan coin: %d\n"+
 			"⏰ Tarama aralığı: 5 dakika\n"+
 			"📈 Timeframe'ler: 5m, 15m, 1h, 4h\n"+
@@ -155,6 +163,7 @@ func (b *Bot) SendStartup(info StartupInfo) {
 			"├ Coin margin override: %s\n"+
 			"└ Coin DCA override: %s\n\n"+
 			"✅ Sistem hazır, tarama başlıyor...",
+		headerEmoji, headerText,
 		info.CoinCount, info.Version,
 		tradingMode,
 		info.Leverage, info.MarginPerTrade,

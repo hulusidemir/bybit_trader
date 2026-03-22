@@ -1495,6 +1495,19 @@ document.addEventListener('mouseleave', function(e){
 //  INIT
 // ═══════════════════════════════════════════════════════════
 termLog('Demir Trade Bot v3.0 Komuta Merkezi başlatıldı', 'success');
+
+// Fetch strategy mode and update branding
+fetch('/api/config').then(r=>r.json()).then(cfg=>{
+    if(cfg.strategyMode === 'inverse') {
+        document.title = '🔄 INVERSE — Demir Trade Bot';
+        const hdr = document.querySelector('header .font-headline');
+        if(hdr) hdr.textContent = '🔄 INVERSE Demir Trade Bot';
+        const sidebar = document.querySelector('aside .font-headline');
+        if(sidebar) sidebar.innerHTML = '🔄 <span class="text-orange-400">INVERSE</span>';
+        termLog('🔄 INVERSE MOD AKTİF — sinyaller ters çevriliyor', 'warn');
+    }
+}).catch(()=>{});
+
 termLog('REST API verisi yükleniyor...', 'info');
 fetchData().then(() => {
     termLog(`${allTrades.length} işlem yüklendi, ${activeTrades.length} aktif pozisyon`, 'success');

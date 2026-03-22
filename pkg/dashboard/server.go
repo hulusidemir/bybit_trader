@@ -133,15 +133,17 @@ type Server struct {
 	hub            *Hub
 	execEventCh    <-chan models.ExecutionEvent
 	balanceFetcher BalanceFetcher
+	strategyMode   string
 }
 
-func NewServer(store *tracker.Store, port int, execEventCh <-chan models.ExecutionEvent, bf BalanceFetcher) *Server {
+func NewServer(store *tracker.Store, port int, execEventCh <-chan models.ExecutionEvent, bf BalanceFetcher, strategyMode string) *Server {
 	return &Server{
 		store:          store,
 		port:           port,
 		hub:            newHub(),
 		execEventCh:    execEventCh,
 		balanceFetcher: bf,
+		strategyMode:   strategyMode,
 	}
 }
 
@@ -160,6 +162,7 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/anomalies", s.handleAnomalies)
 	mux.HandleFunc("/api/patterns", handlePatterns)
 	mux.HandleFunc("/api/balance", s.handleBalance)
+	mux.HandleFunc("/api/config", s.handleConfig)
 
 	// WebSocket endpoint
 	mux.HandleFunc("/ws", s.handleWS)
@@ -404,4 +407,13 @@ func handlePatterns(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(result)
+}
+
+func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"strategyMode": s.strategyMode,
+	})
 }
