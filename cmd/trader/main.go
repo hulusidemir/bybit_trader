@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -31,6 +32,9 @@ import (
 const version = "2.0.0"
 
 func main() {
+	envFile := flag.String("env", ".env", "path to .env config file")
+	flag.Parse()
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Println("═══════════════════════════════════════")
 	log.Println("  Bybit Trader v" + version)
@@ -38,12 +42,15 @@ func main() {
 	log.Println("═══════════════════════════════════════")
 
 	// ── Load Config ────────────────────────────────────
-	cfg, err := config.Load()
+	cfg, err := config.LoadFrom(*envFile)
 	if err != nil {
 		log.Fatalf("Config error: %v", err)
 	}
-	log.Printf("Config loaded: screener=%ds, minVol=$%.0f, port=%d",
-		cfg.ScanIntervalSec, cfg.MinVolume24H, cfg.DashboardPort)
+	if cfg.IsInverse() {
+		log.Println("⚡ INVERSE MODE ACTIVE — signals will be flipped")
+	}
+	log.Printf("Config loaded: screener=%ds, minVol=$%.0f, port=%d, mode=%s",
+		cfg.ScanIntervalSec, cfg.MinVolume24H, cfg.DashboardPort, cfg.StrategyMode)
 
 	// ── Root Context ───────────────────────────────────
 	ctx, cancel := context.WithCancel(context.Background())
@@ -83,7 +90,7 @@ func main() {
 	signalCh := make(chan *models.Signal, 64)
 
 	// ── Initialize Trade Store ─────────────────────────
-	store, err := tracker.NewStore("trades.db")
+	store, err := tracker.NewStore(cfg.DBPath)
 	if err != nil {
 		log.Fatalf("Store error: %v", err)
 	}
@@ -227,7 +234,7 @@ func main() {
 	go analysisLoop(ctx, engine, tpCfg, marketEventCh, signalCh)
 
 	// 5. Signal Processor: SignalCh → Telegram + Trade Execution
-	go signalProcessor(ctx, signalCh, tgBot, store, exec, cfg)
+	go signalProcessor(ctx, signalCh, tgBot, store, exec, cfg, tpCfg)
 
 	log.Println("═══════════════════════════════════════")
 	log.Println("  All goroutines launched. Listening...")
@@ -436,6 +443,7 @@ func signalProcessor(
 	store *tracker.Store,
 	exec *executor.Executor,
 	cfg *config.Config,
+	tpCfg signals.TPConfig,
 ) {
 	// ── Cooldown state ─────────────────────────────────
 	// Symbol cooldown: 30 min per symbol (prevents re-signaling same coin)
@@ -466,6 +474,13 @@ func signalProcessor(
 
 		case sig := <-signalCh:
 			now := time.Now()
+
+			// ── Inverse Mode: flip signal direction ────
+			if cfg.IsInverse() {
+				original := sig.Direction
+				sig = signals.InvertSignal(sig, tpCfg)
+				log.Printf("[Signals] 🔄 INVERSE: %s → %s for %s", original, sig.Direction, sig.Symbol)
+			}
 
 			// ── Global Cooldown: 2 min between any signal ──
 			if !lastGlobalSignal.IsZero() && now.Sub(lastGlobalSignal) < globalCooldown {

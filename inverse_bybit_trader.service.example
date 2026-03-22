@@ -1,0 +1,23 @@
+[Unit]
+Description=Inverse Bybit Trader - Ters Strateji Botu
+Documentation=https://github.com/kullaniciadiniz/bybit_trader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/bybit_trader
+
+# Aynı binary, farklı config dosyası
+ExecStart=/root/bybit_trader/bybit_trader -env .env.inverse
+
+Restart=always
+RestartSec=5
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=inverse_bybit_trader
+
+[Install]
+WantedBy=multi-user.target

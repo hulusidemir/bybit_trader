@@ -16,21 +16,20 @@ type Config struct {
 	DashboardPort    int
 
 	// ── Trading Config ────────────────────────────────
-	BybitAPIKey      string
-	BybitAPISecret   string
-	BybitTestnet     bool    // true = testnet, false = mainnet
-	Leverage         int     // e.g. 10
-	MarginPerTrade   float64 // USD margin per entry, e.g. 100
-	MaxDCACount      int     // max DCA entries per position, e.g. 3
-	DCAThresholdPct  float64 // DCA trigger %, e.g. 20.0
-	OrderTimeoutSec  int     // cancel unfilled limit orders after N seconds
-	TradingEnabled   bool    // master switch for live trading
+	BybitAPIKey     string
+	BybitAPISecret  string
+	BybitTestnet    bool    // true = testnet, false = mainnet
+	Leverage        int     // e.g. 10
+	MarginPerTrade  float64 // USD margin per entry, e.g. 100
+	MaxDCACount     int     // max DCA entries per position, e.g. 3
+	DCAThresholdPct float64 // DCA trigger %, e.g. 20.0
+	OrderTimeoutSec int     // cancel unfilled limit orders after N seconds
+	TradingEnabled  bool    // master switch for live trading
 
 	// ── TP Configuration ──────────────────────────────
-	TP1Pct      float64 // TP1 target %, e.g. 1.0
-	TP2Pct      float64 // TP2 target %, e.g. 2.5
-	TP3Pct      float64 // TP3 target %, e.g. 5.0
-
+	TP1Pct float64 // TP1 target %, e.g. 1.0
+	TP2Pct float64 // TP2 target %, e.g. 2.5
+	TP3Pct float64 // TP3 target %, e.g. 5.0
 
 	// ── Funding Rate Filter ───────────────────────────
 	ShortFundingRateLimit float64 // skip SHORT if funding < this (e.g. -0.0001)
@@ -39,11 +38,19 @@ type Config struct {
 	BlacklistedCoins    map[string]bool    // COIN_BLACKLIST=BTCUSDT,ETHUSDT
 	CoinMarginOverrides map[string]float64 // COIN_MARGIN_OVERRIDES=BTCUSDT:500,ETHUSDT:300
 	CoinDCAOverrides    map[string]float64 // COIN_DCA_OVERRIDES=BTCUSDT:3,SOLUSDT:5
+
+	// ── Strategy Mode ──────────────────────────────────
+	StrategyMode string // "normal" (default) or "inverse"
+	DBPath       string // database file path, default "trades.db"
 }
 
 func Load() (*Config, error) {
-	if err := loadEnvFile(".env"); err != nil {
-		return nil, fmt.Errorf("failed to load .env: %w", err)
+	return LoadFrom(".env")
+}
+
+func LoadFrom(envPath string) (*Config, error) {
+	if err := loadEnvFile(envPath); err != nil {
+		return nil, fmt.Errorf("failed to load %s: %w", envPath, err)
 	}
 
 	cfg := &Config{
@@ -65,9 +72,9 @@ func Load() (*Config, error) {
 		TradingEnabled:  getEnvBool("TRADING_ENABLED", false),
 
 		// TP Config
-		TP1Pct:     getEnvFloat("TP1_PCT", 1.0),
-		TP2Pct:     getEnvFloat("TP2_PCT", 2.5),
-		TP3Pct:     getEnvFloat("TP3_PCT", 5.0),
+		TP1Pct: getEnvFloat("TP1_PCT", 1.0),
+		TP2Pct: getEnvFloat("TP2_PCT", 2.5),
+		TP3Pct: getEnvFloat("TP3_PCT", 5.0),
 
 		// Funding rate filter
 		ShortFundingRateLimit: getEnvFloat("SHORT_FUNDING_RATE_LIMIT", -0.008),
@@ -76,6 +83,10 @@ func Load() (*Config, error) {
 		BlacklistedCoins:    parseBlacklist(os.Getenv("COIN_BLACKLIST")),
 		CoinMarginOverrides: parseOverrides(os.Getenv("COIN_MARGIN_OVERRIDES")),
 		CoinDCAOverrides:    parseOverrides(os.Getenv("COIN_DCA_OVERRIDES")),
+
+		// Strategy mode
+		StrategyMode: getEnvString("STRATEGY_MODE", "normal"),
+		DBPath:       getEnvString("DB_PATH", "trades.db"),
 	}
 
 	if cfg.TelegramBotToken == "" || cfg.TelegramBotToken == "your_bot_token_here" {
@@ -163,6 +174,14 @@ func getEnvBool(key string, def bool) bool {
 	return def
 }
 
+func getEnvString(key string, def string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		return def
+	}
+	return val
+}
+
 // parseBlacklist parses "BTCUSDT,ETHUSDT" into a set
 func parseBlacklist(raw string) map[string]bool {
 	result := make(map[string]bool)
@@ -206,6 +225,11 @@ func (c *Config) MarginForCoin(symbol string) float64 {
 		return amt
 	}
 	return c.MarginPerTrade
+}
+
+// IsInverse returns true if strategy mode is set to inverse
+func (c *Config) IsInverse() bool {
+	return strings.ToLower(c.StrategyMode) == "inverse"
 }
 
 // IsBlacklisted returns true if the coin should be skipped

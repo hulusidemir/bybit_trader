@@ -185,3 +185,38 @@ func generateID() string {
 	rand.Read(b)
 	return hex.EncodeToString(b)
 }
+
+// InvertSignal flips the signal direction and recalculates TP/DCA levels.
+// LONG → SHORT, SHORT → LONG. Entry zone stays the same (current price).
+func InvertSignal(sig *models.Signal, tpCfg TPConfig) *models.Signal {
+	inv := *sig // shallow copy
+
+	// Flip direction
+	if sig.Direction == models.DirectionLong {
+		inv.Direction = models.DirectionShort
+	} else {
+		inv.Direction = models.DirectionLong
+	}
+
+	// Recalculate TP levels based on inverted direction
+	price := (sig.EntryLow + sig.EntryHigh) / 2
+	if inv.Direction == models.DirectionLong {
+		inv.TP1 = price * (1 + tpCfg.TP1Pct/100)
+		inv.TP2 = price * (1 + tpCfg.TP2Pct/100)
+		inv.TP3 = price * (1 + tpCfg.TP3Pct/100)
+	} else {
+		inv.TP1 = price * (1 - tpCfg.TP1Pct/100)
+		inv.TP2 = price * (1 - tpCfg.TP2Pct/100)
+		inv.TP3 = price * (1 - tpCfg.TP3Pct/100)
+	}
+
+	// Recalculate DCA level
+	dcaPct := tpCfg.DCAForCoin(sig.Symbol)
+	if inv.Direction == models.DirectionLong {
+		inv.DCALevel = price * (1 - dcaPct/100)
+	} else {
+		inv.DCALevel = price * (1 + dcaPct/100)
+	}
+
+	return &inv
+}
