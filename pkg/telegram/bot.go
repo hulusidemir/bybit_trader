@@ -12,11 +12,11 @@ import (
 )
 
 type Bot struct {
-	token    string
-	chatID   string
-	http     *http.Client
-	limiter  chan struct{}
-	mu       sync.Mutex
+	token   string
+	chatID  string
+	http    *http.Client
+	limiter chan struct{}
+	mu      sync.Mutex
 }
 
 func NewBot(token, chatID string) *Bot {
@@ -46,9 +46,9 @@ func (b *Bot) SendMessage(text string) error {
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", b.token)
 
 	payload := map[string]interface{}{
-		"chat_id":    b.chatID,
-		"text":       text,
-		"parse_mode": "Markdown",
+		"chat_id":                  b.chatID,
+		"text":                     text,
+		"parse_mode":               "Markdown",
 		"disable_web_page_preview": true,
 	}
 
