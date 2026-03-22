@@ -764,6 +764,19 @@ function fmtP(p){ if(!p) return '0.00'; if(p>=1000) return p.toFixed(2); if(p>=1
 function fmtDate(s){ if(!s) return '—'; const d=new Date(s); return d.toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
 function fmtShortDate(s){ if(!s) return '—'; const d=new Date(s); const day=String(d.getDate()).padStart(2,'0'); const month=String(d.getMonth()+1).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${day}.${month} - ${hh}:${mm}`; }
 function fmtDuration(a,b){ if(!a||!b) return '—'; const s=Math.floor((new Date(b)-new Date(a))/1000); if(s<0) return '—'; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60; if(h>0) return h+'sa '+m+'dk'; if(m>0) return m+'dk '+sec+'sn'; return sec+'sn'; }
+function fmtSince(s){
+    if(!s) return '—';
+    const sec = Math.floor((Date.now() - new Date(s).getTime()) / 1000);
+    if(!Number.isFinite(sec) || sec < 0) return '—';
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const ss = sec % 60;
+    if(d > 0) return `${d}g ${h}sa`;
+    if(h > 0) return `${h}sa ${m}dk`;
+    if(m > 0) return `${m}dk ${ss}sn`;
+    return `${ss}sn`;
+}
 function fmtElapsedClock(openedAt){ if(!openedAt) return '--:--:--'; let s=Math.floor((Date.now()-new Date(openedAt).getTime())/1000); if(!Number.isFinite(s)||s<0) s=0; const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; }
 function pnlStr(v){ return (v>=0?'+':'')+v.toFixed(2)+'%'; }
 function pnlColor(v){ return v>=0 ? 'color:#4edea3' : 'color:#ffb3ad'; }
@@ -1152,6 +1165,8 @@ function renderAnomaliesPage(){
     tbody.innerHTML = list.map(a => {
         const worst = Number(a.worstPnlPercent || 0);
         const cur = Number(a.currentPrice || 0);
+        const detectedAgo = fmtSince(a.detectedAt);
+        const openDuration = a.closedAt ? fmtDuration(a.openedAt, a.closedAt) : '—';
         return `<tr>
             <td class="font-bold text-primary">${a.symbol}</td>
             <td>${dirBadge(a.direction)}</td>
@@ -1160,8 +1175,14 @@ function renderAnomaliesPage(){
             <td class="font-bold text-tertiary">${pnlStr(worst)}</td>
             <td class="text-on-surface-variant">$${fmtP(cur)}</td>
             <td>${anomalyStatusBadge(a.status)}</td>
-            <td class="text-on-surface-variant">${fmtDate(a.detectedAt)}</td>
-            <td class="text-on-surface-variant">${a.closedAt ? fmtDate(a.closedAt) : '—'}</td>
+            <td class="text-on-surface-variant">
+                <div>${fmtDate(a.detectedAt)}</div>
+                <div class="text-[10px] text-on-surface-variant/70">(${detectedAgo} önce)</div>
+            </td>
+            <td class="text-on-surface-variant">
+                <div>${a.closedAt ? fmtDate(a.closedAt) : '—'}</div>
+                <div class="text-[10px] text-on-surface-variant/70">(${openDuration} açık kaldı)</div>
+            </td>
         </tr>`;
     }).join('');
 }
